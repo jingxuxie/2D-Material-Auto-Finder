@@ -490,7 +490,6 @@ class Scan(Set_Stage_Focus):
                 else:
                     self.move([step, 0])
                     self.get_index(x_sample, y_sample, j+1, i)
-                time.sleep(0.1)
                 self.capture_save()
                 
                 time_end = time.time()
@@ -519,7 +518,6 @@ class Scan(Set_Stage_Focus):
                 else:
                     self.move([-(j+1)*step, step])
                     self.get_index(x_sample, y_sample, 0, i+1)
-                time.sleep(0.1)
                 self.capture_save()
         
         self.stop()    
@@ -534,7 +532,7 @@ class Scan(Set_Stage_Focus):
         self.autofocus.go_height(h)
         
     def capture_save(self):
-        #time.sleep(0.05)
+        time.sleep(0.1)
         img = self.camera.last_frame
         left_crop = int(img.shape[1]*0.17)
         right_crop = int(img.shape[1]*0.83)
@@ -583,7 +581,7 @@ class LayerSearchThread(QThread):
         self.material = material
         self.filepath = 'C:/jingxu'
         self.pathDir =  os.listdir(self.filepath)
-#        self.pathDir.sort(key= lambda x:int(x[11:-16]))#按数字排序
+        self.pathDir.sort(key= lambda x:int(x[11:-16]))#按数字排序
         
         self.outpath = 'C:/temp'
         self.finishedDir = os.listdir(self.outpath)
@@ -596,7 +594,7 @@ class LayerSearchThread(QThread):
         while True:
             
             self.pathDir =  os.listdir(self.filepath)
-#            self.pathDir.sort(key= lambda x:int(x[11:-16]))#按数字排序
+            self.pathDir.sort(key= lambda x:int(x[11:-16]))#按数字排序
             time.sleep(1)
 #            time_start = time.time()
 #            record_len = len(self.pathDir)
@@ -613,7 +611,7 @@ class LayerSearchThread(QThread):
                         ret, img_out = layer_search_TMD(input_name, self.thickness)
                     else:
                         print('layer setting error')
-#                    img_out = self.draw_postition(self.pathDir[self.finished_count], img_out)
+                    img_out = self.draw_postition(self.pathDir[self.finished_count], img_out)
                     cv2.imwrite(output_name, img_out)
                     if ret:
                         copyfile(output_name, result_name)

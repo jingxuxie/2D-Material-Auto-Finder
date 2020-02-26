@@ -12,6 +12,8 @@ import sys
 import scipy.signal as signal 
 import time
 from numba import jit
+from shutil import copyfile
+import os
 
 time_start = time.time()
 
@@ -123,7 +125,7 @@ def find_contours(img0, cnt_large, boundary, img_raw, bk_color):
             while i < len(contours_small):
                 area_temp = cv2.contourArea(contours_small[i])
                 #print(area_temp)
-                if area_temp < 100 or not is_wanted(img_raw, contours_small[i]):
+                if area_temp < 100 or not is_wanted(img_raw, contours_small[i], bk_color):
                     contours_small.pop(i)
                     i -=  1
                 else:
@@ -150,25 +152,26 @@ def find_contours(img0, cnt_large, boundary, img_raw, bk_color):
             cv2.drawContours(img_segment,contour_segmentation[i],-1,255,-1)
         
             mean_val = cv2.mean(img_raw,mask = mask_temp)
+            mean_val_y = mean_val[2]*0.299 + mean_val[1]*0.587 + mean_val[0]*0.114
             contrast_g = (bk_color[2] - mean_val[1]) / bk_color[2]
             contrast_r = (bk_color[3] - mean_val[2]) / bk_color[3]
             diff = max(0.03, contrast_g*0.2)
-            if abs(contrast_r - contrast_g) > diff:
-                contour_segmentation.pop(i)
-                i -= 1
-            else:
+#            if abs(contrast_r - contrast_g) > diff:
+#                contour_segmentation.pop(i)
+#                i -= 1
+#            else:
 #            print('contrast', contrast)
 #            if contrast > 0.3 or contrast < 0.025:
 #                contour_segmentation.pop(i)
 #                i -= 1
 #            else:
-                local_contrast = calculate_local_contrast(img_raw, cnt_large, \
-                                                          mean_val[1], bk_color[2])
-                if local_contrast > 0.3 or local_contrast < 0.028:
-                    contour_segmentation.pop(i)
-                    i -= 1
-                else:
-                    contrast_segmentation.append(local_contrast)
+            local_contrast = calculate_local_contrast(img_raw, cnt_large, \
+                                                      mean_val_y, bk_color[0])
+            if local_contrast > 0.3 or local_contrast < 0.028:
+                contour_segmentation.pop(i)
+                i -= 1
+            else:
+                contrast_segmentation.append(local_contrast)
             i += 1
             #print(mean_val)
             #print((bk_color_g - mean_val[1]) / bk_color_g)
@@ -178,7 +181,8 @@ def find_contours(img0, cnt_large, boundary, img_raw, bk_color):
     return contour_segmentation, contrast_segmentation
 
 
-def calculate_local_contrast(img_raw, cnt_large, sample_value, bk_color_g):
+def calculate_local_contrast(img_raw, cnt_large, sample_value, bk_color_y):
+    #use gray scale
     local_bk = sample_value
     
     x,y,w,h = cv2.boundingRect(cnt_large)
@@ -189,10 +193,12 @@ def calculate_local_contrast(img_raw, cnt_large, sample_value, bk_color_g):
     end_2 = min(img_raw.shape[1]-1, x+int(w*(1+enlarge_rate*2)))
     img_rec = img_raw[start_1: end_1, start_2: end_2, :]
     
-    hist = cv2.calcHist([img_rec], [1], None, [256], [0,255])
+    img_rec = cv2.cvtColor(img_rec, cv2.COLOR_BGR2GRAY)
+    
+    hist = cv2.calcHist([img_rec], [0], None, [256], [0,255])
     hist_max = np.max(hist)
     hist_cut_start = int(round(sample_value + 1))
-    hist_cut_end = int(round(bk_color_g + 5.5))
+    hist_cut_end = int(round(bk_color_y + 5.5))
     hist_cut = hist[hist_cut_start: hist_cut_end]
     
     pos = signal.argrelextrema(hist_cut, np.greater)[0]
@@ -212,7 +218,7 @@ def calculate_local_contrast(img_raw, cnt_large, sample_value, bk_color_g):
     return local_contrast
 
 
-def is_wanted(img_raw, contour):
+def is_wanted(img_raw, contour, bk_color):
     area = cv2.contourArea(contour)
     mask = np.zeros((img_raw.shape[0], img_raw.shape[1]), dtype = np.uint8)
     cv2.drawContours(mask, [contour],-1,255,-1)
@@ -229,6 +235,7 @@ def is_wanted(img_raw, contour):
     g_max_pos = np.argmax(hist_g)
     r_max_pos = np.argmax(hist_r)
     
+#    if bk_color[3] - bk_color[2] > 10:
     if r_max_pos < g_max_pos:
         return False
     
@@ -245,6 +252,7 @@ def is_wanted(img_raw, contour):
 def layer_search(filename, thickness = '285nm'):
     img0 = cv2.imread(filename)
     img_raw = img0.copy()
+    img_raw_draw = img0.copy()
     img = img0
     isLayer = False
     #img_raw = cv2.pyrDown(img)
@@ -352,27 +360,52 @@ def layer_search(filename, thickness = '285nm'):
             img_samll_segment = cv2.bitwise_and(img_raw, img_raw, mask = mask)
             
             x,y,w,h = cv2.boundingRect(cnt_large)
-            cv2.rectangle(img_raw,(x,y),(x+w,y+h),(0,255,0),2)
+            enlarge_rate = 0.2
+            start_1 = max(0, y-int(h*enlarge_rate))
+            end_1 = min(img_raw.shape[0]-1, y+int(h*(1+enlarge_rate*2)))
+            start_2 = max(0, x-int(w*enlarge_rate))
+            end_2 = min(img_raw.shape[1]-1, x+int(w*(1+enlarge_rate*2)))
+#            cv2.rectangle(img_raw_draw,(x,y),(x+w,y+h),(0,255,0),2)
+            cv2.rectangle(img_raw_draw,(start_2,start_1),(end_2,end_1),(0,255,0),2)
             
             font = cv2.FONT_HERSHEY_SIMPLEX
-            cv2.putText(img_raw,str(round(contrast[k],3)),(int(x),int(y+h)), font, 1,(255,255,255),2,cv2.LINE_AA)
+            cv2.putText(img_raw_draw,str(round(contrast[k],3)),(int(x),int(y+h)), font, 1,(255,255,255),2,cv2.LINE_AA)
             isLayer = True
             k += 1
     
 #    cv2.imshow('1', img_binary)
 #    cv2.imshow('2-1', img_open)
 #    cv2.imshow('2-2', img_close)
-#    cv2.imshow('4', img_raw)
-    return isLayer, img_raw
+    cv2.imshow('4', img_raw_draw)
+    return isLayer, img_raw_draw
     
 #    cv2.imwrite(outname, img_raw)
 #    if isLayer:
 #        copyfile(outname, copyname)
 
+def test_run(thickness = '285nm'):
+    print(thickness)
+    filepath = 'C:/jingxu'
+    pathDir =  os.listdir(filepath)
+    outpath = 'C:/temp'
+    resultpath = 'C:/results'
+    finished_count = 0
+    for finished_count in range(len(pathDir)):
+        output_name = outpath+'/'+pathDir[finished_count]
+        input_name = filepath+'/'+pathDir[finished_count]
+#                print(input_name)
+        output_name = outpath+'/'+pathDir[finished_count]
+        result_name = resultpath+'/'+pathDir[finished_count]
+        ret, img_out = layer_search(input_name, thickness)
+        cv2.imwrite(output_name, img_out)
+        if ret:
+            copyfile(output_name, result_name)
+
 if __name__ == '__main__':
 #    img0 = cv2.imread('F:/2019/12/20/norm_bk/topleft/12-20-2019-50.jpg')
 #    img0 = cv2.imread('F:/2020/1/25/01-28-2020-36.jpg')
-    layer_search('C:/jingxu/02-23-2020-2-05_05-02_02.jpg', thickness='285nm')
+    layer_search('F:/2020/1/21/01-21-2020-102.jpg', thickness='90nm')
+#    test_run('90nm')
     
     #img0 = cv2.resize(img0, (1200,800))
     '''
