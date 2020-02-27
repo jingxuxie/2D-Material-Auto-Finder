@@ -235,9 +235,9 @@ def is_wanted(img_raw, contour, bk_color):
     g_max_pos = np.argmax(hist_g)
     r_max_pos = np.argmax(hist_r)
     
-#    if bk_color[3] - bk_color[2] > 10:
-    if r_max_pos < g_max_pos:
-        return False
+    if bk_color[3] - bk_color[2] > 10:
+        if r_max_pos < g_max_pos:
+            return False
     
     if r_max_pos < 50:
         return False
@@ -376,7 +376,7 @@ def layer_search(filename, thickness = '285nm'):
 #    cv2.imshow('1', img_binary)
 #    cv2.imshow('2-1', img_open)
 #    cv2.imshow('2-2', img_close)
-    cv2.imshow('4', img_raw_draw)
+#    cv2.imshow('4', img_raw_draw)
     return isLayer, img_raw_draw
     
 #    cv2.imwrite(outname, img_raw)

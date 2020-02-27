@@ -14,6 +14,7 @@ from scipy.signal import find_peaks
 import time
 from numba import jit
 import os
+from shutil import copyfile
 
 time_start = time.time()
 
@@ -63,8 +64,8 @@ def find_real_peak_pos(img0):
         peak_max = pos1[np.argmax(peak1)]
         return [int(peak_max)], img_increase_contr
     
-#    plt.plot(pos1[0], peak1)
-
+#    plt.plot(pos1, peak1)
+        print(len(pos2))
     return pos2, img_increase_contr
     
     
@@ -86,6 +87,7 @@ def find_peak_boundary(pos):
                 boundary.append(pos[i] + d/2)
                 boundary.append(pos[i + 1] - d/2)
             elif d < 5:
+                
                 pass
             i += 1
         boundary.append(boundary_end)
@@ -118,13 +120,12 @@ def find_contours(img0, cnt_large, boundary, img_raw, bk_color):
         
         out, contours_small, hierarchy = \
         cv2.findContours(closing,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
-        
         area = 0
         if len(contours_small) > 0:
             i = 0
             while i < len(contours_small):
                 area_temp = cv2.contourArea(contours_small[i])
-                #print(area_temp)
+#                print(area_temp)
                 if area_temp < 20 or not is_wanted(img_raw, contours_small[i]):
                     contours_small.pop(i)
                     i -=  1
@@ -153,6 +154,7 @@ def find_contours(img0, cnt_large, boundary, img_raw, bk_color):
             cv2.drawContours(img_segment,contour_segmentation[i],-1,255,-1)
         
             mean_val = cv2.mean(img_raw,mask = mask_temp)
+            mean_val_y = mean_val[2]*0.299 + mean_val[1]*0.587 + mean_val[0]*0.114
 #            contrast_g = (bk_color[2] - mean_val[1]) / bk_color[2]
 #            contrast_r = (bk_color[3] - mean_val[2]) / bk_color[3]
 #            diff = max(0.03, contrast_g*0.2)
@@ -167,7 +169,7 @@ def find_contours(img0, cnt_large, boundary, img_raw, bk_color):
 #                i -= 1
 #            else:
             local_contrast = calculate_local_contrast(img_raw, cnt_large, \
-                                                      mean_val[1], bk_color[2])
+                                                      mean_val_y, bk_color[0])
             print(local_contrast)
             if local_contrast > 0.4 or local_contrast < 0.08:
                 contour_segmentation.pop(i)
@@ -183,7 +185,7 @@ def find_contours(img0, cnt_large, boundary, img_raw, bk_color):
     return contour_segmentation, contrast_segmentation
 
 
-def calculate_local_contrast(img_raw, cnt_large, sample_value, bk_color_g):
+def calculate_local_contrast(img_raw, cnt_large, sample_value, bk_color_y):
     local_bk = sample_value
     
     x,y,w,h = cv2.boundingRect(cnt_large)
@@ -194,15 +196,16 @@ def calculate_local_contrast(img_raw, cnt_large, sample_value, bk_color_g):
     end_2 = min(img_raw.shape[1]-1, x+int(w*(1+enlarge_rate*2)))
     img_rec = img_raw[start_1: end_1, start_2: end_2, :]
     
-    hist = cv2.calcHist([img_rec], [1], None, [256], [0,255])
+    img_rec = cv2.cvtColor(img_rec, cv2.COLOR_BGR2GRAY)
+    hist = cv2.calcHist([img_rec], [0], None, [256], [0,255])
     hist_max = np.max(hist)
     hist_cut_start = int(round(sample_value + 1))
-    hist_cut_end = int(round(bk_color_g + 7.5))
+    hist_cut_end = int(round(bk_color_y + 7.5))
     hist_cut = hist[hist_cut_start: hist_cut_end]
     
 #    plt.plot(hist)
     
-    pos = signal.argrelextrema(hist_cut, np.greater)[0]
+    pos, _ = find_peaks(hist_cut[:,0])
     peaks = hist_cut[pos]
     peak_temp = 0
     pos_temp = 0
@@ -229,6 +232,7 @@ def is_wanted(img_raw, contour):
     hist_b = cv2.calcHist([b], [0], None, [256], [1,255])
     hist_g = cv2.calcHist([g], [0], None, [256], [1,255])
     hist_r = cv2.calcHist([r], [0], None, [256], [1,255])
+    
 #    plt.plot(hist_b,color = 'b')
 #    plt.plot(hist_g,color = 'g')
 #    plt.plot(hist_r,color = 'r')
@@ -236,7 +240,7 @@ def is_wanted(img_raw, contour):
     g_max_pos = np.argmax(hist_g)
     r_max_pos = np.argmax(hist_r)
     
-    if r_max_pos < g_max_pos:
+    if r_max_pos < g_max_pos - 20:
         return False
     
     if r_max_pos < 50:
@@ -332,9 +336,22 @@ def layer_search_TMD(filename, thickness = '285nm'):
             if np.argmax(hist_b_temp) < 120 or hist_b_temp[40] > 10:
                 continue
         elif thickness == '90nm':
-            if np.argmax(hist_b_temp) < 65 or hist_b_temp[60] > max(hist_b_temp)/3:
+            if np.argmax(hist_b_temp) < 65 or hist_b_temp[30] > 0:
                 continue
-            
+            for i in range(50,60):
+                flag = False
+                if hist_b_temp[i] > 0:
+                    flag = True
+                    break
+            if flag:
+                continue
+        hsv = cv2.cvtColor(img_cnt_large_cut, cv2.COLOR_BGR2HSV)
+        hist_H_temp = cv2.calcHist([hsv], [0], None, [255], [1,255])
+        hist_S_temp = cv2.calcHist([hsv], [1], None, [255], [1,255])
+        hist_V_temp = cv2.calcHist([hsv], [2], None, [255], [1,255])
+        hue_test = False
+        if np.max(hist_H_temp[40:]) < np.max(hist_H_temp)/5:
+            hue_test = True
         plt.plot(hist_b_temp,color = 'b')
         plt.plot(hist_g_temp,color = 'g')
         plt.plot(hist_r_temp,color = 'r')
@@ -342,6 +359,9 @@ def layer_search_TMD(filename, thickness = '285nm'):
 #        cv2.imshow('img', img_cnt_large_cut)
         
         hist_peak_pos, img_cnt_large_incr_contr = find_real_peak_pos(img_cnt_large_cut)
+        print(len(hist_peak_pos))
+        if len(hist_peak_pos) > 2 and hue_test:
+            continue
         hist_peak_bd = find_peak_boundary(hist_peak_pos)
         cnt_small_ensemble, contrast = find_contours(img_cnt_large_incr_contr, cnt_large,\
                                                      hist_peak_bd, img_raw, bk_color)
@@ -369,7 +389,6 @@ def layer_search_TMD(filename, thickness = '285nm'):
             cv2.rectangle(img_raw_for_draw,(start_2,start_1),(end_2,end_1),(0,255,0),2)
             
             font = cv2.FONT_HERSHEY_SIMPLEX
-            print(len(contrast))
             cv2.putText(img_raw_for_draw,str(round(contrast[k],3)),(start_2,end_1), font, 1,(255,255,255),2,cv2.LINE_AA)
             isLayer = True
             k += 1
@@ -377,7 +396,8 @@ def layer_search_TMD(filename, thickness = '285nm'):
 #    cv2.imshow('1', img_binary)
 #    cv2.imshow('2-1', img_open)
 #    cv2.imshow('2-2', img_close)
-    cv2.imshow('4', img_raw_for_draw)
+#    cv2.namedWindow('4', cv2.WINDOW_NORMAL)
+#    cv2.imshow('4', img_raw_for_draw)
 #    cv2.imwrite('F:/2020/test.jpg', img_raw)
     return isLayer, img_raw_for_draw
     
@@ -388,10 +408,30 @@ def layer_search_TMD(filename, thickness = '285nm'):
 if __name__ == '__main__':
 #    img0 = cv2.imread('F:/2019/12/20/norm_bk/topleft/12-20-2019-50.jpg')
 #    img0 = cv2.imread('F:/2020/1/25/01-28-2020-36.jpg')
-#    layer_search_TMD('H:/Jingxu/2-25/jingxu/02-25-2020-2-20_20-09_07.jpg', thickness='90nm')
+    layer_search_TMD('H:/Jingxu/2-26/jingxu/02-26-2020-2-20_20-09_05.jpg', thickness='90nm')
 #    os.system('pause')
-    layer_search_TMD('F:/2020/2/24/02-24-2020-129.jpg', thickness='90nm')
+#    layer_search_TMD('F:/2020/2/24/02-24-2020-33.jpg', thickness='90nm')
+#    layer_search_TMD('H:/02-26-2020-7-20_20-06_08.jpg', thickness='90nm')
+#    test_run('90nm')
     
+    def test_run(thickness = '285nm'):
+        print(thickness)
+        filepath = 'H:/Jingxu/2-26/jingxu'
+        pathDir =  os.listdir(filepath)
+        outpath = 'H:/Jingxu/2-26/results'
+        resultpath = 'C:/results'
+        finished_count = 0
+        for finished_count in range(len(pathDir)):
+            output_name = outpath+'/'+pathDir[finished_count]
+            input_name = filepath+'/'+pathDir[finished_count]
+    #                print(input_name)
+            output_name = outpath+'/'+pathDir[finished_count]
+            result_name = resultpath+'/'+pathDir[finished_count]
+            ret, img_out = layer_search_TMD(input_name, thickness)
+#            cv2.imwrite(output_name, img_out)
+            if ret:
+#                copyfile(output_name, result_name)
+                cv2.imwrite(output_name, img_out)
     #img0 = cv2.resize(img0, (1200,800))
     '''
     img_raw = img0.copy()
