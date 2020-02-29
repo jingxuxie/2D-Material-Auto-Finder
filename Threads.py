@@ -64,12 +64,16 @@ class StageThread(QThread):
             list_box_text = self.prior_list_box.item_texts()
             if list_box_text[-1] == 'R':
                 if len(list_box_text) > 100:
-                    win32gui.SendMessage(self.hwnd, win32con.WM_SYSCOMMAND, win32con.SC_RESTORE, 0)
-                    win32gui.SetForegroundWindow(self.hwnd)
-                    left, top, right, bottom = win32gui.GetWindowRect(self.manubar_hwnd)
-                    win32api.SetCursorPos([left + int((right - left)/5*3), top + int((bottom - top)/2)])
-                    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP | win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-                    time.sleep(0.05)
+                    try:
+                        win32gui.SendMessage(self.hwnd, win32con.WM_SYSCOMMAND, win32con.SC_RESTORE, 0)
+                        win32gui.SetForegroundWindow(self.hwnd)
+                        left, top, right, bottom = win32gui.GetWindowRect(self.manubar_hwnd)
+                        win32api.SetCursorPos([left + int((right - left)/5*3), top + int((bottom - top)/2)])
+                        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP | win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+                        win32api.SetCursorPos([left-10, top-10])
+                        time.sleep(0.05)
+                    except:
+                        print('Can NOT set foreground window of prior')
                 break
             else:
                 time.sleep(0.02)
@@ -437,6 +441,12 @@ class Scan(Set_Stage_Focus):
         self.bk_filename = self.current_dir + 'support_file/background/crop_x5.png'
         self.get_background()
         
+        self.capture_still = CaptureStill(self.camera, self.background, self.background_norm,\
+                                          self.save_folder, self.date, self.save_count,\
+                                          self.index)
+        self.capture_still.capture_done.connect(self.recv_capture_done)
+        self.capture_still_running = False
+        
     def run(self):
         if self.magnification == '5x':
             step = 2240
@@ -467,6 +477,7 @@ class Scan(Set_Stage_Focus):
                              '-'+'00_00-00_00'+'.jpg', img_temp)
         
         self.get_index(x_sample, y_sample, 0, 0)
+        
         self.capture_save()
         
         for i in range(y_sample+1):
@@ -531,20 +542,33 @@ class Scan(Set_Stage_Focus):
     def focus(self, h = 0):
         self.autofocus.go_height(h)
         
+    def recv_capture_done(self, s):
+        if s == 'stop':
+            self.capture_still_running = False
+        
     def capture_save(self):
         time.sleep(0.1)
-        img = self.camera.last_frame
-        left_crop = int(img.shape[1]*0.17)
-        right_crop = int(img.shape[1]*0.83)
-        img = img[:, left_crop:right_crop]
-        img = background_divide(img, self.background, self.background_norm)
-
-#        while os.path.isfile(self.save_folder+'/'+self.date+'-'+str(self.save_count)+\
-#                             '-'+'00_00-00_00'+'.jpg'):
-#            self.save_count += 1
-        cv2.imwrite(self.save_folder+'/'+self.date+'-'+str(self.save_count)+\
-                    '-'+self.index+'.jpg', img)
-#        self.save_count += 1
+        self.capture_still.save_count = self.save_count
+        self.capture_still.index = self.index
+        if not self.capture_still_running:
+            self.capture_still_running = True
+            self.capture_still.start()
+        else:
+            self.capture_still_running = False
+            self.capture_still.terminate()
+            
+#        img = self.camera.last_frame
+#        left_crop = int(img.shape[1]*0.17)
+#        right_crop = int(img.shape[1]*0.83)
+#        img = img[:, left_crop:right_crop]
+#        img = background_divide(img, self.background, self.background_norm)
+#
+##        while os.path.isfile(self.save_folder+'/'+self.date+'-'+str(self.save_count)+\
+##                             '-'+'00_00-00_00'+'.jpg'):
+##            self.save_count += 1
+#        cv2.imwrite(self.save_folder+'/'+self.date+'-'+str(self.save_count)+\
+#                    '-'+self.index+'.jpg', img)
+##        self.save_count += 1
     
     
     def get_index(self, total_x, total_y, x, y):
@@ -571,6 +595,41 @@ class Scan(Set_Stage_Focus):
     def stop(self):
         self.scan_stop.emit('stop')
         
+
+class CaptureStill(QThread):
+    capture_done = pyqtSignal(str)
+    def __init__(self, camera, background, background_norm, save_folder, date, \
+                 save_count, index):
+        super().__init__()
+        self.camera = camera
+        self.threshold = 100000
+        self.background = background
+        self.background_norm = background_norm
+        self.save_folder = save_folder
+        self.date = date
+        self.save_count = save_count
+        self.index = index
+        
+    def run(self):
+        for i in range(10):
+            self.img_temp = self.camera.last_frame
+            gray_1 = cv2.cvtColor(self.img_temp, cv2.COLOR_BGR2GRAY)
+            time.sleep(0.02)
+            
+            self.img = self.camera.last_frame
+            gray_2 = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
+            d_frame = cv2.absdiff(gray_1, gray_2)
+            
+            if np.sum(d_frame[a] > 50) < self.threshold:
+                break
+            
+        left_crop = int(self.img.shape[1]*0.17)
+        right_crop = int(self.img.shape[1]*0.83)
+        self.img = self.img[:, left_crop:right_crop]
+        self.img = background_divide(self.img, self.background, self.background_norm)
+        cv2.imwrite(self.save_folder+'/'+self.date+'-'+str(self.save_count)+\
+                    '-'+self.index+'.jpg', self.img)
+        self.capture_done.emit('stop')
         
 
 

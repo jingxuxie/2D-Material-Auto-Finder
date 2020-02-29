@@ -65,7 +65,7 @@ def find_real_peak_pos(img0):
         return [int(peak_max)], img_increase_contr
     
 #    plt.plot(pos1, peak1)
-        print(len(pos2))
+    print(len(pos2))
     return pos2, img_increase_contr
     
     
@@ -97,7 +97,7 @@ def find_peak_boundary(pos):
 
 
 
-def find_contours(img0, cnt_large, boundary, img_raw, bk_color):
+def find_contours(img0, cnt_large, boundary, img_raw, bk_color, thickness = '285nm'):
     if boundary[0] == 0 and boundary[1] == 0:
         return [], []
     
@@ -126,7 +126,8 @@ def find_contours(img0, cnt_large, boundary, img_raw, bk_color):
             while i < len(contours_small):
                 area_temp = cv2.contourArea(contours_small[i])
 #                print(area_temp)
-                if area_temp < 20 or not is_wanted(img_raw, contours_small[i]):
+                if area_temp < 20 or not is_wanted(img_raw, contours_small[i],\
+                                                   bk_color, thickness):
                     contours_small.pop(i)
                     i -=  1
                 else:
@@ -140,7 +141,7 @@ def find_contours(img0, cnt_large, boundary, img_raw, bk_color):
     #print(len(contour_segmentation))
     
     if len(contour_segmentation) > 0:
-        print(len(contour_segmentation))
+#        print(len(contour_segmentation))
         mask = np.zeros(img.shape, np.uint8)
         i = 0
     
@@ -222,16 +223,49 @@ def calculate_local_contrast(img_raw, cnt_large, sample_value, bk_color_y):
     return local_contrast
 
 
-def is_wanted(img_raw, contour):
+def is_wanted(img_raw, contour, bk_color, thickness = '285nm'):
     area = cv2.contourArea(contour)
     mask = np.zeros((img_raw.shape[0], img_raw.shape[1]), dtype = np.uint8)
     cv2.drawContours(mask, [contour],-1,255,-1)
     segment = cv2.bitwise_and(img_raw, img_raw, mask = mask)
     
+#    x,y,w,h = cv2.boundingRect(contour)
+#    enlarge_rate = 0.1
+#    start_1 = max(0, y-int(h*enlarge_rate))
+#    end_1 = min(img_raw.shape[0]-1, y+int(h*(1+enlarge_rate*2)))
+#    start_2 = max(0, x-int(w*enlarge_rate))
+#    end_2 = min(img_raw.shape[1]-1, x+int(w*(1+enlarge_rate*2)))
+#    img_temp = img_raw[start_1: end_1, start_2: end_2, :]
+#    perimeter = cv2.arcLength(contour,True)
+#    print('perimeter', perimeter)
+    
+#    cv2.namedWindow('segment', cv2.WINDOW_NORMAL)
+#    cv2.imshow('segment',img_temp)
+#    laplacian = cv2.Laplacian(img_temp,cv2.CV_64F)
+#    mean_temp = np.sum(abs(laplacian[abs(laplacian)>1]))/perimeter
+#    print('laplacian mean:',round(mean_temp,5))
+    
+#    if mean_temp < 100:
+#        return False
+    
     b,g,r = cv2.split(segment)
     hist_b = cv2.calcHist([b], [0], None, [256], [1,255])
     hist_g = cv2.calcHist([g], [0], None, [256], [1,255])
     hist_r = cv2.calcHist([r], [0], None, [256], [1,255])
+    
+#    hsv = cv2.cvtColor(segment, cv2.COLOR_BGR2HSV)
+#    hist_H_temp = cv2.calcHist([hsv], [0], None, [255], [1,255])
+#    hist_S_temp = cv2.calcHist([hsv], [1], None, [255], [1,255])
+#    hist_V_temp = cv2.calcHist([hsv], [2], None, [255], [1,255])
+#    plt.plot(hist_H_temp,color = 'b')
+#    plt.plot(hist_S_temp,color = 'g')
+#    plt.plot(hist_V_temp,color = 'r')
+#    print(np.argmax(hist_H_temp), np.argmax(hist_S_temp), np.max(hist_S_temp[:30]))
+#    if np.argmax(hist_H_temp) < 30 and \
+#    np.argmax(hist_S_temp) > 50 and np.max(hist_S_temp[:30]) > 0: 
+#        return False
+#    if np.max(hist_H_temp[150:]) < np.max(hist_H_temp)/10:
+#        return False
     
 #    plt.plot(hist_b,color = 'b')
 #    plt.plot(hist_g,color = 'g')
@@ -240,7 +274,25 @@ def is_wanted(img_raw, contour):
     g_max_pos = np.argmax(hist_g)
     r_max_pos = np.argmax(hist_r)
     
-    if r_max_pos < g_max_pos - 20:
+#    contrast_b_temp = b_max_pos/bk_color[1]
+#    contrast_g_temp = g_max_pos/bk_color[2]
+#    contrast_r_temp = r_max_pos/bk_color[3]
+#    delta_b_g = abs(contrast_b_temp - contrast_g_temp)
+#    delta_g_r = abs(contrast_g_temp - contrast_r_temp)
+#    delta_r_b = abs(contrast_r_temp - contrast_b_temp)
+#    print(delta_b_g, delta_g_r, delta_r_b)
+#    if delta_b_g < 0.07 and delta_g_r < 0.07 and delta_r_b < 0.07:
+#        return False
+    
+    
+    if thickness == '285nm':
+        r_g_diff = 20
+    elif thickness == '90nm':
+        r_g_diff = 10
+#    print(r_max_pos, g_max_pos)
+    if r_max_pos < g_max_pos - r_g_diff:
+        return False
+    if r_max_pos < g_max_pos - 10:
         return False
     
     if r_max_pos < 50:
@@ -248,7 +300,6 @@ def is_wanted(img_raw, contour):
 #        r_max = np.max int('123')
     return True
             
-    
     
     
 
@@ -270,6 +321,7 @@ def layer_search_TMD(filename, thickness = '285nm'):
     
     img = cv2.cvtColor(img_raw, cv2.COLOR_BGR2GRAY)
     hist_y = cv2.calcHist([img], [0], None, [256], [0,255])
+    hist_y = hist_y[124:145]
     
     #img = cv2.medianBlur(img,3)
     #img = cv2.GaussianBlur(img, (3,3), sigmaX = 1.5, sigmaY = 1.5)
@@ -277,6 +329,7 @@ def layer_search_TMD(filename, thickness = '285nm'):
     
 #    plt.plot(hist_y)
     bk_color_y = np.argmax(hist_y)
+    bk_color_y += 124
     bk_color_b = np.argmax(hist_b)
     bk_color_g = np.argmax(hist_g)
     bk_color_r = np.argmax(hist_r)
@@ -315,7 +368,7 @@ def layer_search_TMD(filename, thickness = '285nm'):
     for cnt_large in cnt_large_ensemble[:]:
         mask = np.zeros(img.shape,np.uint8)
         cv2.drawContours(mask,[cnt_large],-1,255,-1)
-        
+            
         #pixelpoints = np.transpose(np.nonzero(mask))
         
         #edges = cv2.Canny(img,0,20, mask = mask)
@@ -328,6 +381,15 @@ def layer_search_TMD(filename, thickness = '285nm'):
         hist_b_temp = cv2.calcHist([img_cnt_large_cut], [0], None, [255], [1,255])
         hist_g_temp = cv2.calcHist([img_cnt_large_cut], [1], None, [255], [1,255])
         hist_r_temp = cv2.calcHist([img_cnt_large_cut], [2], None, [255], [1,255])
+#        contrast_b_temp = np.argmax(hist_b_temp)/bk_color_b
+#        contrast_g_temp = np.argmax(hist_g_temp)/bk_color_g
+#        contrast_r_temp = np.argmax(hist_r_temp)/bk_color_r
+#        delta_b_g = abs(contrast_b_temp - contrast_g_temp)
+#        delta_g_r = abs(contrast_g_temp - contrast_r_temp)
+#        delta_r_b = abs(contrast_r_temp - contrast_b_temp)
+#        print(delta_b_g, delta_g_r, delta_r_b)
+#        if delta_b_g < 0.05 and delta_g_r < 0.05 and delta_r_b < 0.05:
+#            continue
 
         #去除大轮廓的峰的蓝色小于100的， 针对285有效，即去除黑的部分
 #        if hist_temp[30] > 0:
@@ -340,31 +402,33 @@ def layer_search_TMD(filename, thickness = '285nm'):
                 continue
             for i in range(50,60):
                 flag = False
-                if hist_b_temp[i] > 0:
+                if hist_b_temp[i] > np.max(hist_b_temp)/5:
                     flag = True
                     break
             if flag:
                 continue
-        hsv = cv2.cvtColor(img_cnt_large_cut, cv2.COLOR_BGR2HSV)
-        hist_H_temp = cv2.calcHist([hsv], [0], None, [255], [1,255])
-        hist_S_temp = cv2.calcHist([hsv], [1], None, [255], [1,255])
-        hist_V_temp = cv2.calcHist([hsv], [2], None, [255], [1,255])
-        hue_test = False
-        if np.max(hist_H_temp[40:]) < np.max(hist_H_temp)/5:
-            hue_test = True
-        plt.plot(hist_b_temp,color = 'b')
-        plt.plot(hist_g_temp,color = 'g')
-        plt.plot(hist_r_temp,color = 'r')
+#        hsv = cv2.cvtColor(img_cnt_large_cut, cv2.COLOR_BGR2HSV)
+#        hist_H_temp = cv2.calcHist([hsv], [0], None, [255], [1,255])
+#        hist_S_temp = cv2.calcHist([hsv], [1], None, [255], [1,255])
+#        hist_V_temp = cv2.calcHist([hsv], [2], None, [255], [1,255])
+#        hue_test = False
+#        if np.max(hist_H_temp[150:]) < np.max(hist_H_temp)/10:
+#            hue_test = True
+#        if np.max(hist_S_temp[:20]) > 20:
+#            continue
+#        plt.plot(hist_H_temp,color = 'b')
+#        plt.plot(hist_S_temp,color = 'g')
+#        plt.plot(hist_V_temp,color = 'r')
         img_cnt_large_cut = cv2.cvtColor(img_cnt_large_cut, cv2.COLOR_BGR2GRAY)
 #        cv2.imshow('img', img_cnt_large_cut)
         
         hist_peak_pos, img_cnt_large_incr_contr = find_real_peak_pos(img_cnt_large_cut)
-        print(len(hist_peak_pos))
-        if len(hist_peak_pos) > 2 and hue_test:
-            continue
+#        print(len(hist_peak_pos))
+#        if len(hist_peak_pos) > 2 and hue_test:
+#            continue
         hist_peak_bd = find_peak_boundary(hist_peak_pos)
         cnt_small_ensemble, contrast = find_contours(img_cnt_large_incr_contr, cnt_large,\
-                                                     hist_peak_bd, img_raw, bk_color)
+                                                     hist_peak_bd, img_raw, bk_color, thickness)
         k = 0
         for cnt_smalls in cnt_small_ensemble[:]:
             area_temp = 0
@@ -380,6 +444,8 @@ def layer_search_TMD(filename, thickness = '285nm'):
             img_samll_segment = cv2.bitwise_and(img_raw, img_raw, mask = mask)
             
             x,y,w,h = cv2.boundingRect(cnt_large)
+            if w*h > 50000:
+                continue
             enlarge_rate = 0.2
             start_1 = max(0, y-int(h*enlarge_rate))
             end_1 = min(img_raw.shape[0]-1, y+int(h*(1+enlarge_rate*2)))
@@ -408,17 +474,19 @@ def layer_search_TMD(filename, thickness = '285nm'):
 if __name__ == '__main__':
 #    img0 = cv2.imread('F:/2019/12/20/norm_bk/topleft/12-20-2019-50.jpg')
 #    img0 = cv2.imread('F:/2020/1/25/01-28-2020-36.jpg')
-    layer_search_TMD('H:/Jingxu/2-26/jingxu/02-26-2020-2-20_20-09_05.jpg', thickness='90nm')
+#    layer_search_TMD('H:/Jingxu/2-28/jingxu/02-28-2020-10-20_20-01_20.jpg', thickness='90nm')
 #    os.system('pause')
-#    layer_search_TMD('F:/2020/2/24/02-24-2020-33.jpg', thickness='90nm')
+#    layer_search_TMD('F:/2020/2/24/02-26-2020-1.jpg', thickness='90nm')
 #    layer_search_TMD('H:/02-26-2020-7-20_20-06_08.jpg', thickness='90nm')
-#    test_run('90nm')
+    test_run('90nm')
     
     def test_run(thickness = '285nm'):
         print(thickness)
         filepath = 'H:/Jingxu/2-26/jingxu'
+#        filepath = 'C:/jingxu'
         pathDir =  os.listdir(filepath)
         outpath = 'H:/Jingxu/2-26/results'
+#        outpath = 'C:/temp'
         resultpath = 'C:/results'
         finished_count = 0
         for finished_count in range(len(pathDir)):

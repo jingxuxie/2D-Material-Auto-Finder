@@ -154,47 +154,66 @@ class CameraNumEdit(QWidget):
     def cancel(self):
         self.close()
 
-class CalibritionEdit(QWidget):
-    confirm_clicked = pyqtSignal(str)
-    def __init__(self, current_calibrition):
+class CalibrationEdit(QWidget):
+    def __init__(self, current_calibration):
         super().__init__()
-        self.current_calibrition = current_calibrition
+        self.current_calibration = current_calibration
         self.init_ui()
         
     def init_ui(self):
-        label = QLabel(self)
-        label.setText('Calibrition')
+        label_current = QLabel(self)
+        label_current.setText('Current calibration: ')
+        
+        label_current_value = QLabel(self)
+        label_current_value.setText(str(self.current_calibration))
+        
+        label_set = QLabel(self)
+        label_set.setText('Set calibration: ')
         self.line_edit = QLineEdit(self)
         
         self.con_but_click_num = 0
-        confirm_button = QPushButton('Confirm', self)
-        confirm_button.clicked.connect(self.confirm)
+        
+        save_later_button = QPushButton('Save for later', self)
+        save_later_button.clicked.connect(self.save_later)
+        
+        save_once_button = QPushButton('Save for once', self)
+        save_once_button.clicked.connect(self.save_once)
+        
         for sequence in ("Enter", "Return",):
-            shorcut = QShortcut(sequence, confirm_button)
-            shorcut.activated.connect(confirm_button.animateClick)
+            shorcut = QShortcut(sequence, save_once_button)
+            shorcut.activated.connect(save_once_button.animateClick)
         
         cancel_button = QPushButton('Cancel', self)
         cancel_button.clicked.connect(self.cancel)
         
+        hbox0 = QHBoxLayout()
+        hbox0.addWidget(label_current)
+        hbox0.addWidget(label_current_value)
+        
         hbox1 = QHBoxLayout()
-        hbox1.addWidget(label)
+        hbox1.addWidget(label_set)
         hbox1.addWidget(self.line_edit)
         
         hbox2 = QHBoxLayout()
-        hbox2.addWidget(confirm_button)
+        hbox2.addWidget(save_later_button)
+        hbox2.addWidget(save_once_button)
         hbox2.addWidget(cancel_button)
         
         vbox = QVBoxLayout()
+        vbox.addLayout(hbox0)
         vbox.addLayout(hbox1)
         vbox.addLayout(hbox2)
 
         self.setLayout(vbox)
-        
+    
+    def save_later(self):
+        pass
+    
+    def save_once(self):
+        pass
     def confirm(self):
         if self.con_but_click_num == 0:
             self.con_but_click_num += 1
-            calibrition_str = self.line_edit.text()
-            self.confirm_clicked.emit(calibrition_str)
            
     def cancel(self):
         self.close()

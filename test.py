@@ -6,14 +6,15 @@ Created on Sun Jan 19 17:24:35 2020
 """
 import PyQt5
 import sys
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-
-from PyQt5.QtCore import *
+#from PyQt5.QtWidgets import 
+#from PyQt5.QtCore import 
+#from PyQt5.QtGui import 
+#
+#from PyQt5.QtCore import 
 import sys
 import cv2
-
+import numpy as np
+import time
 '''
 playlist = QMediaPlaylist()
 url = QUrl.fromLocalFile("./shutter_sound.mp3")
@@ -87,15 +88,34 @@ class Example(QWidget):
         
 if __name__ == '__main__':
     
-    img = cv2.imread('H:/Jingxu/2-19/temp/02-19-2020-1-04_04-02_03.jpg')
-    rec_x1 = img.shape[1] - 300
-    rec_y1 = 100
-    rec_x2 = rec_x1 + 200
-    rec_y2 = rec_y1 + 200
-    print(rec_x1, rec_y1,rec_x2, rec_y2)
-    cv2.rectangle(img,(rec_x1,rec_y1),(rec_x2,rec_y2),(0,0,255),3)
-
-    cv2.imshow('img',img)
+#     with open('F:\Desktop2019.8.15\SonyView\support_file'+'\calibration.txt') as f:
+#         a = f.read()
+    
+    
+    cap = cv2.VideoCapture(0)
+    ret, img_1 = cap.read()
+    time_start = time.time()
+    gray_1 = cv2.cvtColor(img_1, cv2.COLOR_BGR2GRAY)
+    time.sleep(0.52)
+    ret, img_2 = cap.read()
+    time_end = time.time()
+    print(time_end - time_start)
+    gray_2 = cv2.cvtColor(img_2, cv2.COLOR_BGR2GRAY)
+    d_frame = cv2.absdiff(gray_1, gray_2)
+    cv2.imshow('img_1',img_1)
+    cv2.imshow('img_2',img_2)
+    cv2.imshow('diff',d_frame)
+    print(np.max(d_frame))
+    
+#    img = cv2.imread('H:/Jingxu/2-19/temp/02-19-2020-1-04_04-02_03.jpg')
+#    rec_x1 = img.shape[1] - 300
+#    rec_y1 = 100
+#    rec_x2 = rec_x1 + 200
+#    rec_y2 = rec_y1 + 200
+#    print(rec_x1, rec_y1,rec_x2, rec_y2)
+#    cv2.rectangle(img,(rec_x1,rec_y1),(rec_x2,rec_y2),(0,0,255),3)
+#
+#    cv2.imshow('img',img)
 #    cv2.imwrite('H:/Jingxu/2-18/results/test.jpg', img)
 #    '''
 #    app = QApplication(sys.argv)

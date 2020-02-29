@@ -40,7 +40,7 @@ from auxiliary_func import go_fast, background_divide, get_folder_from_file,\
     matrix_divide, float2uint8, calculate_contrast, record_draw_shape,\
     calculate_angle
 from auxiliary_class import RGB_Slider, ProgressBar, CameraNumEdit, \
-    CalibritionEdit, ThicknessChoose, SearchingProperty
+    CalibrationEdit, ThicknessChoose, SearchingProperty
 
           
 
@@ -92,7 +92,14 @@ class MainWindow(QMainWindow):
         self.showFileDialog_folder = 'C:/'
         self.saveFileDialog_folder = 'C:/'
         
-        self.calibrition = 13
+        try:
+            with open(self.current_dir+'calibration.txt') as f:
+                self.calibration = float(f.read())
+        except:
+            self.calibration = 14.33
+            QMessageBox.critical(self, "Missing file", 'The supporting calibration.txt '
+                                  'file is missing. Calibration is set to default as'
+                                  '14.33')
         self.font = cv2.FONT_HERSHEY_SIMPLEX
         
         self.mouse_pos_initial()
@@ -143,8 +150,8 @@ class MainWindow(QMainWindow):
         restart = QAction('Restart', self)
         restart.triggered.connect(self.restart_program)
         
-        set_calibrition = QAction('Calibration', self)
-        set_calibrition.triggered.connect(self.set_calibrition)
+        set_calibration = QAction('Calibration', self)
+        set_calibration.triggered.connect(self.set_calibration)
         
         set_cam_num = QAction('Camera number', self)
         set_cam_num.triggered.connect(self.set_camera_number)
@@ -176,7 +183,7 @@ class MainWindow(QMainWindow):
         toolMenu.addAction(restart)
         
         settingMenu = self.menubar.addMenu('&Setting')
-        settingMenu.addAction(set_calibrition)
+        settingMenu.addAction(set_calibration)
         settingMenu.addAction(set_cam_num)
         settingMenu.addAction(theme)
         
@@ -585,35 +592,41 @@ class MainWindow(QMainWindow):
         else:
             self.show_scale = True
     
-    def set_calibrition(self):
-        self.input_calibrition = CalibritionEdit(self.calibrition)
-        self.input_calibrition.confirm_clicked.connect(self.recv_new_calibrition)
-        self.input_calibrition.show()
+    def set_calibration(self):
+        self.input_calibration = CalibrationEdit(self.calibration)
+#        self.input_calibration.confirm_clicked.connect(self.recv_new_calibration)
+        self.input_calibration.show()
         
     
-    def recv_new_calibrition(self, s):
+    def recv_new_calibration(self, s):
         try:
             float(s)
         except:
-            self.calibrition_warning()
+            self.calibration_warning()
         else:
             if str.isalpha(str(float)):
-                self.calibrition_warning()
+                self.calibration_warning()
             elif not 0.1 <= float(s) <= 30:
-                self.calibrition_warning()
+                self.calibration_warning()
             else:
-                self.calibrition = float(s)
-                self.input_calibrition.close()
+                self.calibration = float(s)
+#                try:
+#                    with open(self.current_dir+'saveto.txt','w') as f:
+#                        f.write(fname)
+#                except:
+#                    QMessageBox.critical(self, "Missing file", 'The supporting saveto.txt '
+#                                      'file is missing. Path not set')
+                self.input_calibration.close()
             
-    def calibrition_warning(self):
-        self.input_calibrition.close()
-        self.input_calibrition.con_but_click_num = 0
-        reply = QMessageBox.warning(self, "Warning", 'Calibrition can only be '+\
+    def calibration_warning(self):
+        self.input_calibration.close()
+        self.input_calibration.con_but_click_num = 0
+        reply = QMessageBox.warning(self, "Warning", 'Calibration can only be '+\
                                     'decimals > 0.1 and <30. Do you want to '+
                                     '\try again? ', +\
                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
         if reply == QMessageBox.Yes:
-            self.input_calibrition.show()
+            self.input_calibration.show()
     
     
     def set_camera_number(self):
@@ -1543,8 +1556,12 @@ class MainWindow(QMainWindow):
                 self.img_show = cv2.cvtColor(self.img_show,cv2.COLOR_BGR2GRAY)
             self.img_show = self.change_contrast(self.img_show)
         else:
-            self.img_show = cv2.cvtColor(self.img_show,cv2.COLOR_BGR2RGB)
+            try:
+                self.img_show = cv2.cvtColor(self.img_show,cv2.COLOR_BGR2RGB)
+            except:
+                pass
             self.img_show = self.change_contrast(self.img_show)
+            
         
 
         if self.DT_draw:
@@ -1564,7 +1581,7 @@ class MainWindow(QMainWindow):
             if self.zoomed:
                 zoom_ratio = (self.mouse_rec_y2 - self.mouse_rec_y1)/self.img_atmouse_height           
                 self.distance *= zoom_ratio
-            self.distance = self.distance*1000/self.magnification*self.calibrition
+            self.distance = self.distance*1000/self.magnification*self.calibration
             '''
             self.distance = self.calculate_distance(self.mouse_line_x1, self.mouse_line_y1,\
                                                     self.mouse_line_x2, self.mouse_line_y2)
@@ -1684,7 +1701,7 @@ class MainWindow(QMainWindow):
         if self.zoomed:
             zoom_ratio = (self.mouse_rec_y2 - self.mouse_rec_y1)/self.img_atmouse_height           
             distance *= zoom_ratio
-        distance = distance*1000/self.magnification*self.calibrition
+        distance = distance*1000/self.magnification*self.calibration
         return distance
     
     def show_angle_value(self):
