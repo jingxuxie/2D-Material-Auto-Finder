@@ -84,7 +84,8 @@ class RGB_Slider(QWidget):
         
         self.grid.addWidget(self.b_max_lbl, *[8,0])
         self.grid.addWidget(self.b_max_sld, *[8,1])
-                
+          
+        
         
 class ProgressBar(QWidget):
     def __init__(self):
@@ -110,113 +111,138 @@ class ProgressBar(QWidget):
       qr.moveCenter(cp)
       self.move(qr.topLeft())
 
+
+
 class CameraNumEdit(QWidget):
-    childclicked = pyqtSignal(str)
-    def __init__(self):
+    def __init__(self, current_num = 0):
         super().__init__()
+        self.current_num = current_num
+        self.camera_num = current_num
         self.init_ui()
         
     def init_ui(self):
-        label = QLabel(self)
-        label.setText('Camera number')
+        label_current = QLabel(self)
+        label_current.setText('Current number')
+        label_current_value = QLabel(self)
+        label_current_value.setText(str(self.current_num))
+        
+        label_new = QLabel(self)
+        label_new.setText('New number')
         self.line_edit = QLineEdit(self)
         
         self.con_but_click_num = 0
-        confirm_button = QPushButton('Confirm', self)
-        confirm_button.clicked.connect(self.confirm)
+        
+        self.save_later_button = QPushButton('Save for later', self)
+        self.save_later_button.clicked.connect(self.save)
+        
+        self.save_once_button = QPushButton('Save for once', self)
+        self.save_once_button.clicked.connect(self.save)
+        
         for sequence in ("Enter", "Return",):
-            shorcut = QShortcut(sequence, confirm_button)
-            shorcut.activated.connect(confirm_button.animateClick)
+            shorcut = QShortcut(sequence, self.save_once_button)
+            shorcut.activated.connect(self.save_once_button.animateClick)
         
         cancel_button = QPushButton('Cancel', self)
         cancel_button.clicked.connect(self.cancel)
         
         hbox1 = QHBoxLayout()
-        hbox1.addWidget(label)
-        hbox1.addWidget(self.line_edit)
+        hbox1.addWidget(label_current)
+        hbox1.addWidget(label_current_value)
         
         hbox2 = QHBoxLayout()
-        hbox2.addWidget(confirm_button)
-        hbox2.addWidget(cancel_button)
+        hbox2.addWidget(label_new)
+        hbox2.addWidget(self.line_edit)
+        
+        hbox3 = QHBoxLayout()
+        hbox3.addWidget(self.save_later_button)
+        hbox3.addWidget(self.save_once_button)
+        hbox3.addWidget(cancel_button)
         
         vbox = QVBoxLayout()
         vbox.addLayout(hbox1)
         vbox.addLayout(hbox2)
+        vbox.addLayout(hbox3)
 
         self.setLayout(vbox)
-        
-    def confirm(self):
-        if self.con_but_click_num == 0:
-            self.con_but_click_num += 1
-            childstr = self.line_edit.text()
-            self.childclicked.emit(childstr)
-           
+        self.setWindowTitle('Setting Camera Number')
+    
+    def save(self):
+        self.camera_num = self.line_edit.text()
+    
     def cancel(self):
         self.close()
+
+
 
 class CalibrationEdit(QWidget):
     def __init__(self, current_calibration):
         super().__init__()
         self.current_calibration = current_calibration
+        self.calibration = current_calibration
         self.init_ui()
         
     def init_ui(self):
+#        label_default = QLabel(self)
+#        label_default.setText('Default calibration')
+#        label_default_value = QLabel(self)
+#        label_default_value.setText('14.33')
+        
         label_current = QLabel(self)
         label_current.setText('Current calibration: ')
-        
         label_current_value = QLabel(self)
         label_current_value.setText(str(self.current_calibration))
         
         label_set = QLabel(self)
-        label_set.setText('Set calibration: ')
+        label_set.setText('New calibration: ')
         self.line_edit = QLineEdit(self)
         
         self.con_but_click_num = 0
         
-        save_later_button = QPushButton('Save for later', self)
-        save_later_button.clicked.connect(self.save_later)
+        self.save_later_button = QPushButton('Save for later', self)
+        self.save_later_button.clicked.connect(self.save_later)
         
-        save_once_button = QPushButton('Save for once', self)
-        save_once_button.clicked.connect(self.save_once)
+        self.save_once_button = QPushButton('Save for once', self)
+        self.save_once_button.clicked.connect(self.save_once)
         
         for sequence in ("Enter", "Return",):
-            shorcut = QShortcut(sequence, save_once_button)
-            shorcut.activated.connect(save_once_button.animateClick)
+            shorcut = QShortcut(sequence, self.save_once_button)
+            shorcut.activated.connect(self.save_once_button.animateClick)
         
         cancel_button = QPushButton('Cancel', self)
         cancel_button.clicked.connect(self.cancel)
         
-        hbox0 = QHBoxLayout()
-        hbox0.addWidget(label_current)
-        hbox0.addWidget(label_current_value)
-        
         hbox1 = QHBoxLayout()
-        hbox1.addWidget(label_set)
-        hbox1.addWidget(self.line_edit)
+        hbox1.addWidget(label_current)
+        hbox1.addWidget(label_current_value)
         
         hbox2 = QHBoxLayout()
-        hbox2.addWidget(save_later_button)
-        hbox2.addWidget(save_once_button)
-        hbox2.addWidget(cancel_button)
+        hbox2.addWidget(label_set)
+        hbox2.addWidget(self.line_edit)
+        
+        hbox3 = QHBoxLayout()
+        hbox3.addWidget(self.save_later_button)
+        hbox3.addWidget(self.save_once_button)
+        hbox3.addWidget(cancel_button)
         
         vbox = QVBoxLayout()
-        vbox.addLayout(hbox0)
         vbox.addLayout(hbox1)
         vbox.addLayout(hbox2)
+        vbox.addLayout(hbox3)
 
         self.setLayout(vbox)
+        self.setWindowTitle('Setting Calibration')
     
     def save_later(self):
-        pass
+        self.calibration = self.line_edit.text()
     
     def save_once(self):
-        pass
-    def confirm(self):
+        self.calibration = self.line_edit.text()
         if self.con_but_click_num == 0:
             self.con_but_click_num += 1
            
     def cancel(self):
         self.close()
+        
         
         
         

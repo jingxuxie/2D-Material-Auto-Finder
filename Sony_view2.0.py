@@ -15,16 +15,17 @@ import sys
 import os
 
 class LiveWindow(MainWindow):
-    def __init__(self,camera):
+    def __init__(self):
         super().__init__()
-        self.camera = camera
-        self.setWindowTitle('Camera Live(v2.0)')
+        self.setWindowTitle('Camera Live(v3.0)')
         
         self.button_save_as.hide()
     
         self.button_release.clicked.connect(self.edit)
         
         self.Editor = None
+        self.Editor = EditWindow()
+        self.Editor.hide()
         
         palette1 = QPalette()
         palette1.setColor(palette1.Background,QColor(240,250,205))
@@ -32,7 +33,6 @@ class LiveWindow(MainWindow):
         
     def edit(self):
         if self.Editor is None or self.Editor.is_showing == False:
-            self.Editor = EditWindow(camera)
             self.Editor.is_showing = True
             self.Editor.show()
         self.Editor.openfile = True
@@ -44,12 +44,14 @@ class LiveWindow(MainWindow):
 
 
 class EditWindow(MainWindow):
-    def __init__(self, camera):
+    def __init__(self):
         super().__init__()
           
-        self.setWindowTitle('Camera Editor(v2.0)')
+        self.setWindowTitle('Camera Editor(v3.0)')
         self.button_release.hide()
         self.button_live.hide()
+        self.button_saveto.hide()
+        self.release_folder_lbl.hide()
         
         self.is_showing = False
         
@@ -74,12 +76,12 @@ if __name__ == '__main__':
     splash.show()
     splash.showMessage('Loading……')
     
-    camera = Camera(0)
-    camera.initialize()
+#    camera = Camera(0)
+#    camera.initialize()
     
     
     
-    live = LiveWindow(camera)
+    live = LiveWindow()
     
     splash.close()
     sys.exit(app.exec_())

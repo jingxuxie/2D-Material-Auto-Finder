@@ -47,12 +47,9 @@ from auxiliary_class import RGB_Slider, ProgressBar, CameraNumEdit, \
 
 class MainWindow(QMainWindow):
     
-    def __init__(self,camera = None):
+    def __init__(self):
         super().__init__()
-        self.camera = camera
-        
         self.openfile = False
-        #self.open_img = 
         self.initUI()
 
     
@@ -84,7 +81,7 @@ class MainWindow(QMainWindow):
         except:
             self.release_folder = 'C:/'
             QMessageBox.critical(self, "Missing file", 'The supporting saveto.txt '
-                                  'file is missing. Path not set')
+                                  'file is missing.')
         self.date = time.strftime("%m-%d-%Y")
         self.release_count = 1
         
@@ -100,6 +97,17 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Missing file", 'The supporting calibration.txt '
                                   'file is missing. Calibration is set to default as'
                                   '14.33')
+        try:
+            with open(self.current_dir+'camera.txt') as f:
+                self.camera_num = int(f.read())
+        except:
+            self.camera_num = 0
+            QMessageBox.critical(self, "Missing file", 'The supporting camera.txt '
+                                  'file is missing.')
+        self.camera = Camera(self.camera_num)
+        self.camera.initialize()
+        
+        
         self.font = cv2.FONT_HERSHEY_SIMPLEX
         
         self.mouse_pos_initial()
@@ -189,7 +197,7 @@ class MainWindow(QMainWindow):
         
         HelpMenu = self.menubar.addMenu('Help')
         HelpMenu.addAction(help_contact)
-        #HelpMenu.addAction(help_about)
+        HelpMenu.addAction(help_about)
         #HelpMenu.addAction(acknowledge)
 
         initial_size = QAction('Home',self)
@@ -302,7 +310,7 @@ class MainWindow(QMainWindow):
         clear_baseline = QAction('Clear Base Line', self)
         clear_baseline.triggered.connect(self.clear_base_line)
         angle_tool_menu.addAction(choose_baseline)
-        angle_tool_menu.addAction(clear_baseline)
+        #angle_tool_menu.addAction(clear_baseline)
         self.choosing_base_line = False
         self.angle_button.setMenu(angle_tool_menu) 
         self.angle_button.setPopupMode(QToolButton.MenuButtonPopup)
@@ -351,9 +359,9 @@ class MainWindow(QMainWindow):
         button_reset_contrast = QPushButton('Reset Contrast', self)
         button_reset_contrast.clicked.connect(self.rgb_initialize)
         
-        button_saveto = QPushButton('Save path', self)
-        button_saveto.setToolTip('This is the folder where your released files will be saved')
-        button_saveto.clicked.connect(self.save_path_setting)
+        self.button_saveto = QPushButton('Save path', self)
+        self.button_saveto.setToolTip('This is the folder where your released files will be saved')
+        self.button_saveto.clicked.connect(self.save_path_setting)
         
         self.release_folder_lbl = QLabel(self)
         if len(self.release_folder) > 20:
@@ -460,7 +468,7 @@ class MainWindow(QMainWindow):
         #vbox_r.addStretch(1)
         self.vbox_r.addWidget(button_reset_contrast)
         self.vbox_r.addStretch(2)
-        self.vbox_r.addWidget(button_saveto, Qt.AlignBottom)
+        self.vbox_r.addWidget(self.button_saveto, Qt.AlignBottom)
         #vbox_r.addStretch(1)
         self.vbox_r.addWidget(self.release_folder_lbl)
         self.vbox_r.addStretch(1)
@@ -594,11 +602,13 @@ class MainWindow(QMainWindow):
     
     def set_calibration(self):
         self.input_calibration = CalibrationEdit(self.calibration)
-#        self.input_calibration.confirm_clicked.connect(self.recv_new_calibration)
+        self.input_calibration.save_once_button.clicked.connect(self.recv_new_calibration)
+        self.input_calibration.save_later_button.clicked.connect(self.recv_save_new_calibration)
         self.input_calibration.show()
         
     
-    def recv_new_calibration(self, s):
+    def recv_new_calibration(self):
+        s = self.input_calibration.calibration
         try:
             float(s)
         except:
@@ -610,32 +620,43 @@ class MainWindow(QMainWindow):
                 self.calibration_warning()
             else:
                 self.calibration = float(s)
-#                try:
-#                    with open(self.current_dir+'saveto.txt','w') as f:
-#                        f.write(fname)
-#                except:
-#                    QMessageBox.critical(self, "Missing file", 'The supporting saveto.txt '
-#                                      'file is missing. Path not set')
                 self.input_calibration.close()
             
+            
+    def recv_save_new_calibration(self):
+        self.recv_new_calibration()
+        reply = QMessageBox.warning(self, "Warning", 'Do you want to save this '+\
+                                    'new calibration for later use?',+\
+                                    QMessageBox.No | QMessageBox.No, QMessageBox.Yes)
+        if reply == QMessageBox.Yes:
+            try:
+                with open(self.current_dir+'calibration.txt','w') as f:
+                    f.write(str(self.calibration))
+            except:
+                QMessageBox.critical(self, "Error writing file", "The supporting calibration.txt "
+                                  "file can't be written!")
+    
+    
     def calibration_warning(self):
         self.input_calibration.close()
         self.input_calibration.con_but_click_num = 0
         reply = QMessageBox.warning(self, "Warning", 'Calibration can only be '+\
                                     'decimals > 0.1 and <30. Do you want to '+
-                                    '\try again? ', +\
+                                    'try again? ', +\
                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
         if reply == QMessageBox.Yes:
             self.input_calibration.show()
     
     
     def set_camera_number(self):
-        self.input_cam_num = CameraNumEdit()
-        self.input_cam_num.childclicked.connect(self.recv_camera_number)
+        self.input_cam_num = CameraNumEdit(self.camera_num)
+        self.input_cam_num.save_once_button.clicked.connect(self.recv_camera_number)
+        self.input_cam_num.save_later_button.clicked.connect(self.recv_save_camera_number)
         self.input_cam_num.show()
         
         
-    def recv_camera_number(self, s):
+    def recv_camera_number(self):
+        s = self.input_cam_num.camera_num
         try: 
             int(s)
         except:
@@ -650,12 +671,27 @@ class MainWindow(QMainWindow):
             self.camera.close_camera()
             self.live_timer.stop()
             self.movie_thread.terminate()
-            self.camera = Camera(int(s))
+            self.camera_num = int(s)
+            self.camera = Camera(self.camera_num)
             self.camera.initialize()
             self.movie_thread = MovieThread(self.camera)
             self.movie_thread.start()
             self.live_timer.start(40)
             self.input_cam_num.close()
+    
+    def recv_save_camera_number(self):
+        self.recv_camera_number()
+        reply = QMessageBox.warning(self, "Warning", 'Do you want to save this '+\
+                                    'new camera number for later use?',+\
+                                    QMessageBox.No | QMessageBox.No, QMessageBox.Yes)
+        if reply == QMessageBox.Yes:
+            try:
+                with open(self.current_dir+'camera.txt','w') as f:
+                    f.write(str(self.camera_num))
+            except:
+                QMessageBox.critical(self, "Error writing file", "The supporting camera.txt "
+                                  "file can't be written!")
+
 
           
     def undo_redo_setting(self):
@@ -856,11 +892,12 @@ class MainWindow(QMainWindow):
     
     def contact(self):
         QMessageBox.information(self, 'contact','Please contact jingxuxie@berkeley.edu '+\
-                                'to report bugs and support feedback. Thank!')
+                                'to report bugs and support feedback. Thanks!')
     
     def about(self):
-        QMessageBox.information(self, 'About Sony Remote', 'Sony Remote v1.0. '+ \
-                                'Designed and created by Jingxu Xie(谢京旭).')
+        QMessageBox.information(self, 'About', 'Camera Tool v3.0. with layer search integrated. '+ \
+                                'Proudly designed and created by Jingxu Xie(谢京旭).\n \n'
+                                'Copyright © 2019-2020 Jingxu Xie. All Rights Reserved.')
         
     def acknowledgement(self):
         QMessageBox.information(self, 'acknowledgement', 'I thank a lot for Sasha\'s help.')
