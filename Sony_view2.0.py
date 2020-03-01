@@ -25,11 +25,11 @@ class LiveWindow(MainWindow):
         
         self.Editor = None
         self.Editor = EditWindow()
-        self.Editor.hide()
         
         palette1 = QPalette()
         palette1.setColor(palette1.Background,QColor(240,250,205))
         self.setPalette(palette1)
+        self.show()
         
     def edit(self):
         if self.Editor is None or self.Editor.is_showing == False:

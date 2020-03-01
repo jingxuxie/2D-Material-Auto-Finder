@@ -510,7 +510,6 @@ class MainWindow(QMainWindow):
         self.setObjectName('MainWindow')
         
 #        self.setStyleSheet('#MainWindow{background-color: green}')
-        self.show()
     
     def large_scan(self):
         self.large_scan_thread = LargeScanThread(self.camera, self.substrate_thickness)
@@ -1928,9 +1927,11 @@ class MainWindow(QMainWindow):
             self.img_raw = self.change_contrast(self.img_raw)
             self.img_raw = cv2.cvtColor(self.img_raw,cv2.COLOR_RGB2BGR)
         if self.show_scale:
+            self.img_raw = cv2.cvtColor(self.img_raw, cv2.COLOR_BGR2RGB)
             self.img_show = self.img_raw
             self.draw_graduated_scale()
-            self.img_raw = self.img_show
+            self.img_raw = cv2.cvtColor(self.img_show, cv2.COLOR_RGB2BGR)
+            
         
    
     def draw_hist(self):
