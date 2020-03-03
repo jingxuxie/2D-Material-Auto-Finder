@@ -336,7 +336,7 @@ class SearchingProperty(QWidget):
         label_thickness.setText('Thickness')
         
         label_mag = QLabel(self)
-        label_mag.setText('Mgnification')
+        label_mag.setText('Magnification')
         
         self.combo_material = QComboBox(self)
         self.combo_material.addItem('graphene')

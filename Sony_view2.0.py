@@ -78,12 +78,10 @@ if __name__ == '__main__':
     
 #    camera = Camera(0)
 #    camera.initialize()
-    
-    
-    
+     
     live = LiveWindow()
     
     splash.close()
     sys.exit(app.exec_())
     
-    camera.close_camera()
+#    camera.close_camera()

@@ -26,7 +26,7 @@ exe = EXE(pyz,
           bootloader_ignore_signals=False,
           strip=False,
           upx=True,
-          console=False , icon='F:\\Desktop2019.8.15\\SonyView\\support_file\\shutter.ico')
+          console=True , icon='shutter.ico')
 coll = COLLECT(exe,
                a.binaries,
                a.zipfiles,

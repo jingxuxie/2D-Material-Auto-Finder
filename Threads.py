@@ -446,6 +446,7 @@ class Scan(Set_Stage_Focus):
                                           self.index)
         self.capture_still.capture_done.connect(self.recv_capture_done)
         self.capture_still_running = False
+        self.threshold = 100000
         
     def run(self):
         if self.magnification == '5x':
@@ -544,18 +545,48 @@ class Scan(Set_Stage_Focus):
         
     def recv_capture_done(self, s):
         if s == 'stop':
+            print('capture stop')
             self.capture_still_running = False
+            self.capture_still.running = False
         
     def capture_save(self):
-        time.sleep(0.1)
-        self.capture_still.save_count = self.save_count
-        self.capture_still.index = self.index
-        if not self.capture_still_running:
+        for i in range(50):
+            self.img_temp = self.camera.last_frame
+            gray_1 = cv2.cvtColor(self.img_temp, cv2.COLOR_BGR2GRAY)
+            time.sleep(0.04)
+            
+            self.img = self.camera.last_frame
+            gray_2 = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
+            d_frame = cv2.absdiff(gray_1, gray_2)
+            
+            if np.sum(d_frame[d_frame > 50]) < self.threshold:
+                break
+            
+        left_crop = int(self.img.shape[1]*0.17)
+        right_crop = int(self.img.shape[1]*0.83)
+        self.img = self.img[:, left_crop:right_crop]
+        self.img = background_divide(self.img, self.background, self.background_norm)
+        cv2.imwrite(self.save_folder+'/'+self.date+'-'+str(self.save_count)+\
+                    '-'+self.index+'.jpg', self.img)
+        '''
+        if not self.capture_still_running or not self.capture_still.running:
+            self.capture_still.save_count = self.save_count
+            self.capture_still.index = self.index
+            self.capture_still.running = True
             self.capture_still_running = True
             self.capture_still.start()
+            time.sleep(0.1)
         else:
+            print('capture wrong, capture wrong, capture wrong!')
+            #time.sleep(0.1)
+            #if self.capture_still_running:
             self.capture_still_running = False
+                
+            self.capture_still.save()
+            time.sleep(0.1)
+            #else:
             self.capture_still.terminate()
+        '''
             
 #        img = self.camera.last_frame
 #        left_crop = int(img.shape[1]*0.17)
@@ -602,16 +633,18 @@ class CaptureStill(QThread):
                  save_count, index):
         super().__init__()
         self.camera = camera
-        self.threshold = 100000
+        self.threshold = 500000
         self.background = background
         self.background_norm = background_norm
         self.save_folder = save_folder
         self.date = date
         self.save_count = save_count
         self.index = index
+        self.running = False
         
     def run(self):
-        for i in range(10):
+        self.running = True
+        for i in range(15):
             self.img_temp = self.camera.last_frame
             gray_1 = cv2.cvtColor(self.img_temp, cv2.COLOR_BGR2GRAY)
             time.sleep(0.02)
@@ -620,7 +653,7 @@ class CaptureStill(QThread):
             gray_2 = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
             d_frame = cv2.absdiff(gray_1, gray_2)
             
-            if np.sum(d_frame[a] > 50) < self.threshold:
+            if np.sum(d_frame[d_frame > 50]) < self.threshold:
                 break
             
         left_crop = int(self.img.shape[1]*0.17)
@@ -629,6 +662,18 @@ class CaptureStill(QThread):
         self.img = background_divide(self.img, self.background, self.background_norm)
         cv2.imwrite(self.save_folder+'/'+self.date+'-'+str(self.save_count)+\
                     '-'+self.index+'.jpg', self.img)
+        self.running = False
+        self.capture_done.emit('stop')
+        print('sum',np.sum(d_frame[d_frame > 50]))
+
+    def save(self):
+        left_crop = int(self.img.shape[1]*0.17)
+        right_crop = int(self.img.shape[1]*0.83)
+        self.img = self.img[:, left_crop:right_crop]
+        self.img = background_divide(self.img, self.background, self.background_norm)
+        cv2.imwrite(self.save_folder+'/'+self.date+'-'+str(self.save_count)+\
+                    '-'+self.index+'.jpg', self.img)
+        self.running = False
         self.capture_done.emit('stop')
         
 
@@ -649,14 +694,20 @@ class LayerSearchThread(QThread):
         self.resultpath = 'C:/results'
     
     def run(self):
+        time_start = time.time()
+        record_len = len(self.pathDir)
         #i = 0
         while True:
-            
             self.pathDir =  os.listdir(self.filepath)
             self.pathDir.sort(key= lambda x:int(x[11:-16]))#按数字排序
             time.sleep(1)
-#            time_start = time.time()
-#            record_len = len(self.pathDir)
+            if len(self.pathDir) != record_len:
+                time_start = time.time()
+            else:
+                time_end = time.time()
+                if time_end - time_start > 120:
+                    print('layer search finished')
+                    break
             for self.finished_count in range(len(self.pathDir)):
                 output_name = self.outpath+'/'+self.pathDir[self.finished_count]
                 if not os.path.isfile(output_name):

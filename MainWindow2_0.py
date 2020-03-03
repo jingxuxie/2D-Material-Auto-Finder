@@ -183,7 +183,7 @@ class MainWindow(QMainWindow):
         toolMenu.addAction(show_scale)
         toolMenu.addAction(capture_BK)
         toolMenu.addAction(autofocus)
-        toolMenu.addAction(stage)
+#        toolMenu.addAction(stage)
         toolMenu.addAction(find_focus_plane)
         toolMenu.addAction(scan)
         toolMenu.addAction(layer_search)
@@ -304,6 +304,11 @@ class MainWindow(QMainWindow):
         self.start_angle_measurement = False
         self.base_line = []
         
+        self.target_button = QToolButton()
+        self.target_button.setIcon(QIcon(self.current_dir+'target.png'))
+        self.target_button.setToolTip('Layer searching')
+        self.target_button.clicked.connect(self.large_scan)
+        
         angle_tool_menu = QMenu()
         choose_baseline = QAction('Choose Base Line', self)
         choose_baseline.triggered.connect(self.choose_base_line)
@@ -335,6 +340,7 @@ class MainWindow(QMainWindow):
         
         self.toolbar3 = self.addToolBar('advanced tools')
         self.toolbar3.addWidget(self.angle_button)
+        self.toolbar3.addWidget(self.target_button)
         #self.toolbar3.addWidget(self.graphene_button)
         
         self.toolbar = self.addToolBar(' ')
@@ -484,6 +490,8 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.central_widget)
         self.layout.addLayout(self.hbox)
         
+        self.movie_thread = MovieThread(self.camera)
+        
         self.live_timer = QTimer()
         self.openfile_timer = QTimer()
         self.restart_timer = QTimer()
@@ -549,7 +557,8 @@ class MainWindow(QMainWindow):
         
     def recv_scan_stop(self,s):
         if s == 'stop':
-            self.layer_search_thread.terminate()
+            pass
+#            self.layer_search_thread.terminate()
        
     def find_focus_plane(self):
         self.find_focus_plane_thread = FindFocusPlane(self.camera)
