@@ -890,7 +890,7 @@ class MainWindow(QMainWindow):
                 else:
                     bk_savename = QFileDialog.getSaveFileName(self,'save bk',\
                                                 self.current_bk_dir,\
-                                                "Image files(*.jpg *.png)")
+                                                "Image files(*.jpg *.png *.bmp)")
                     if bk_savename[0]:
                         cv2.imwrite(bk_savename[0], self.capture_bk_average)
         self.capture_bk_frame.append(self.img_raw)
@@ -1358,7 +1358,7 @@ class MainWindow(QMainWindow):
         self.openfile = True
         self.fname = QFileDialog.getOpenFileName(self, 'Select BK', \
                                                  self.selectbk_folder,\
-                                                 "Image files(*.jpg *.png)")
+                                                 "Image files(*.jpg *.png *.bmp)")
         
         if self.fname[0]:
             self.SB = False
@@ -1411,7 +1411,7 @@ class MainWindow(QMainWindow):
         #self.openfile = False
         save_file_name = QFileDialog.getSaveFileName(self,'save as',\
                                                      self.saveFileDialog_folder,\
-                                                     "Image files(*.jpg *.png)")
+                                                     "Image files(*.jpg *.png *.bmp)")
         if  save_file_name[0]:
             self.saveFileDialog_folder = get_folder_from_file(save_file_name[0])
             self.refresh_show()
@@ -1423,7 +1423,7 @@ class MainWindow(QMainWindow):
     def showFileDialog(self):
         self.fname = QFileDialog.getOpenFileName(self, 'Open file',\
                                                  self.showFileDialog_folder,\
-                                                 "Image files(*.jpg *.png)")
+                                                 "Image files(*.jpg *.png *.bmp)")
         #加上判断文件类型的操作，试试try except
         if self.fname[0]:
             self.showFileDialog_folder = get_folder_from_file(self.fname[0])
@@ -1521,7 +1521,7 @@ class MainWindow(QMainWindow):
             self.refresh_show()
             self.show_on_screen()
             self.refresh_raw()
-            while os.path.isfile(self.release_folder+'/'+self.date+'-'+str(self.release_count)+'.jpg'):
+            while os.path.isfile(self.release_folder+'/'+self.date+'-'+str(self.release_count)+'.bmp'):
                 self.release_count += 1
             img_release_temp.append(self.img_raw)
         img_release = img_release_temp[0].astype(int)
@@ -1530,7 +1530,7 @@ class MainWindow(QMainWindow):
         #print(len(img_release_temp))
         img_release = img_release / len(img_release_temp)
         self.img_release = img_release.astype(np.uint8)
-        cv2.imwrite(self.release_folder+'/'+self.date+'-'+str(self.release_count)+'.jpg', self.img_release)
+        cv2.imwrite(self.release_folder+'/'+self.date+'-'+str(self.release_count)+'.bmp', self.img_release)
         #cv2.imshow('released', self.img_release)
         self.live_timer.start(40)        
         
@@ -1579,6 +1579,8 @@ class MainWindow(QMainWindow):
                                          int(self.mouse_rec_x1*scale_ratio):int(self.mouse_rec_x2*scale_ratio)]
             #print(self.img_show.shape[0],self.img_show.shape[1])
             self.img_show = np.require(self.img_show, np.uint8, 'C')
+#            kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]], np.float32) #锐化
+#            self.img_show = cv2.filter2D(self.img_show, -1, kernel=kernel)
             self.display_resize()
             #self.img_show = cv2.blur(self.img_show, (10,10))
             

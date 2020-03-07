@@ -213,13 +213,13 @@ class AutoFocusThread(QThread):
             self.stop()
             time.sleep(1)
         self.gradiant_mean = []
-        self.click_go_height_wait(100)
-        self.cal_clearness()
-        for i in range(10):
-            self.down_coarse()
+        if self.click_go_height_wait(100):
             self.cal_clearness()
-        z = 10 - np.argmax(self.gradiant_mean)
-        self.click_go_height_wait(z*20)
+            for i in range(10):
+                self.down_coarse()
+                self.cal_clearness()
+            z = 10 - np.argmax(self.gradiant_mean)
+            self.click_go_height_wait(z*20)
         
 #        with open('focus.txt','a') as file:
 #            file.write(str(self.gradiant_mean)+'\n')
@@ -227,13 +227,13 @@ class AutoFocusThread(QThread):
 #        file.close()
             
         self.gradiant_mean = []
-        self.click_go_height_wait(20)
-        self.cal_clearness()
-        for i in range(4):
-            self.down_fine()
+        if self.click_go_height_wait(20):
             self.cal_clearness()
-        z = 4 - np.argmax(self.gradiant_mean)
-        self.click_go_height_wait(z*10)
+            for i in range(4):
+                self.down_fine()
+                self.cal_clearness()
+            z = 4 - np.argmax(self.gradiant_mean)
+            self.click_go_height_wait(z*10)
 
         if self.Fine:
             self.gradiant_mean = []
@@ -244,9 +244,11 @@ class AutoFocusThread(QThread):
                 self.cal_clearness()
             z = 5 - np.argmax(self.gradiant_mean)
             self.click_go_height_wait(z*2)
-            
-        self.bx2_position = float(win32gui.GetWindowText(self.bx2_position_hwnd))
         
+        try:
+            self.bx2_position = float(win32gui.GetWindowText(self.bx2_position_hwnd))
+        except:
+            print('No position read')
         self.stop()
         
     def cal_clearness(self):
@@ -260,15 +262,24 @@ class AutoFocusThread(QThread):
         time.sleep(0.7)
     
     def down_coarse(self):
-        self.soft_key_2_button.click()
+        try:
+            self.soft_key_2_button.click()
+        except:
+            print('No soft key 2')
         time.sleep(0.7)
     
     def down_fine(self):
-        self.soft_key_3_button.click()
+        try:
+            self.soft_key_3_button.click()
+        except:
+            print('No soft key 3')
         time.sleep(0.7)
     
     def down_super_fine(self):
-        self.soft_key_4_button.click()
+        try:
+            self.soft_key_4_button.click()
+        except:
+            print('NO soft key 4')
         time.sleep(0.7)
         
     def go_height(self, z):
@@ -289,10 +300,21 @@ class AutoFocusThread(QThread):
 #                if position_1 != position_0:
 #                    break
     def click_go_height_wait(self, h):
-        self.soft_key_5_button.click()
+#        position_0 = win32gui.GetWindowText(self.bx2_position_hwnd)
+        try:
+            self.soft_key_5_button.click()
+        except:
+            print('No soft key 5')
         time.sleep(0.5)
         self.go_height(h)
         time.sleep(0.5)
+#        position_1 = win32gui.GetWindowText(self.bx2_position_hwnd)
+#        if position_1 != position_0:
+#            print ('Go height error!')
+#            return False
+#        else:
+#            return True
+        return True
 
     def stop(self):
         print('focus stop')
@@ -431,7 +453,22 @@ class Scan(Set_Stage_Focus):
         self.rotate_90 = False
         
         self.date = time.strftime("%m-%d-%Y")
-        self.save_folder = 'C:/jingxu'
+        self.month = time.strftime('%m')
+        self.day = time.strftime('%d')
+        self.year = time.strftime('%Y')
+        self.save_folder = 'C:/layer_search/'+self.year+'/'+self.month+'/'+self.day
+        if not os.path.isdir(self.save_folder):
+            os.makedirs(self.save_folder)
+            
+        self.save_count_dir = 1
+        while os.path.isdir(self.save_folder + '/' + str(self.save_count_dir)):
+            self.save_count_dir += 1
+        self.save_folder += '/' + str(self.save_count_dir)
+        os.makedirs(self.save_folder+ '/raw')
+        os.makedirs(self.save_folder+ '/temp')
+        os.makedirs(self.save_folder+ '/results')
+        self.save_folder += '/raw'
+        
         self.save_count = 1
         
         self.index = '00_00-00_00'
@@ -679,27 +716,34 @@ class CaptureStill(QThread):
 
 
 class LayerSearchThread(QThread):
-    def __init__(self, thickness = '285nm', material = 'graphene'):
+    def __init__(self, thickness = '285nm', material = 'graphene', filepath = '',\
+                 resultpath = ''):
         super().__init__()
         self.thickness = thickness
         self.material = material
-        self.filepath = 'C:/jingxu'
-        self.pathDir =  os.listdir(self.filepath)
-        self.pathDir.sort(key= lambda x:int(x[11:-16]))#按数字排序
+        self.filepath = filepath
+        if os.path.isdir(self.filepath):
+            self.pathDir =  os.listdir(self.filepath)
+            self.pathDir.sort(key= lambda x:int(x[11:-16]))#按数字排序
+        else:
+            self.pathDir = []
         
         self.outpath = 'C:/temp'
-        self.finishedDir = os.listdir(self.outpath)
-        self.finished_count = len(self.finishedDir)
+#        self.finishedDir = os.listdir(self.outpath)
+        self.finished_count = 0 #len(self.finishedDir)
         
-        self.resultpath = 'C:/results'
+        self.resultpath = resultpath
     
     def run(self):
         time_start = time.time()
         record_len = len(self.pathDir)
         #i = 0
         while True:
-            self.pathDir =  os.listdir(self.filepath)
-            self.pathDir.sort(key= lambda x:int(x[11:-16]))#按数字排序
+            if os.path.isdir(self.filepath):
+                self.pathDir =  os.listdir(self.filepath)
+                self.pathDir.sort(key= lambda x:int(x[11:-16]))#按数字排序
+            else:
+                self.pathDir = []
             time.sleep(1)
             if len(self.pathDir) != record_len:
                 time_start = time.time()
@@ -724,7 +768,8 @@ class LayerSearchThread(QThread):
                     img_out = self.draw_postition(self.pathDir[self.finished_count], img_out)
                     cv2.imwrite(output_name, img_out)
                     if ret:
-                        copyfile(output_name, result_name)
+                        cv2.imwrite(result_name, img_out)
+#                        copyfile(output_name, result_name)
                 
 #                self.finished_count += 1
                 
@@ -787,6 +832,9 @@ class LargeScanThread(QThread):
         self.scan.magnification = self.magnification
         self.layer_search.thickness = self.thickness
         self.layer_search.material = self.material
+        self.layer_search.filepath = self.scan.save_folder
+        self.layer_search.resultpath = get_folder_from_file(self.layer_search.filepath) + '/results'
+        self.layer_search.outpath = get_folder_from_file(self.layer_search.filepath) + '/temp'
         self.layer_search.start()
         if self.magnification == '20x':
             self.find_focus_plane.autofocus.Fine = True
