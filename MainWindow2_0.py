@@ -20,12 +20,13 @@ import sys
 import cv2
 import os
 import time
+import json
 from Camera import Camera
 from BresenhamAlgorithm import Pos_of_Line, Pos_of_Circle, Pos_in_Circle, \
     Pos_of_Rec 
 import copy
 from numba import jit
-from drawing import Line, Rectangle, Circle, Eraser, Clear_All
+from drawing import Line, Rectangle, Circle, Eraser, Point, Clear_All
 import win32gui
 import win32api
 import win32con
@@ -40,10 +41,13 @@ from auxiliary_func import go_fast, background_divide, get_folder_from_file,\
     matrix_divide, float2uint8, calculate_contrast, record_draw_shape,\
     calculate_angle
 from auxiliary_class import RGB_Slider, ProgressBar, CameraNumEdit, \
-    CalibrationEdit, ThicknessChoose, SearchingProperty
+    CalibrationEdit, ThicknessChoose, SearchingProperty, DropLabel, \
+    CustomContrast, DeleteCustomContrast
 
           
-
+class QComboBox(QComboBox):
+    def wheelEvent(self, QWheelEvent):
+        pass
 
 class MainWindow(QMainWindow):
     
@@ -64,7 +68,8 @@ class MainWindow(QMainWindow):
         self.img_show = cv2.imread(self.current_dir+'no_camera.png')
         self.img_release = cv2.imread(self.current_dir+'no_camera.png')
         self.canvas = np.zeros(self.img_show.shape, dtype = np.uint8)
-        self.canvas_blank = np.zeros((self.img_show.shape[0], self.img_show.shape[1]), dtype = int)   
+        self.canvas_blank = np.zeros((self.img_show.shape[0], self.img_show.shape[1]), dtype = int)
+        self.custom_contrast_file = self.current_dir + 'custom_contrast.txt'
         
         if self.img_show is None:
             self.img_show = np.zeros((512,512,3), np.uint8)
@@ -120,16 +125,21 @@ class MainWindow(QMainWindow):
         
         openFile = QAction('Open file', self)
         openFile.triggered.connect(self.showFileDialog)
+        openFile.setIcon(QIcon(self.current_dir+'openfile.png'))
         openFile.setShortcut('Ctrl+O')
         
         saveFile = QAction('Save as', self)
         saveFile.triggered.connect(self.saveFileDialog)
+        saveFile.setIcon(QIcon(self.current_dir+'save.png'))
         saveFile.setShortcut('Ctrl+S')
         
         show_scale = QAction('Show scale', self, checkable = True)
         show_scale.setChecked(True)
         show_scale.triggered.connect(self.show_scale_method)
         self.show_scale = True
+        
+        self.developer_options = QAction('Developer options', self, checkable = True)
+        self.developer_options.triggered.connect(self.show_developer_options)
         
         capture_BK = QAction('Capture BK', self)
         capture_BK.triggered.connect(self.capture_background)
@@ -176,18 +186,13 @@ class MainWindow(QMainWindow):
         self.menubar = self.menuBar()
         fileMenu = self.menubar.addMenu('&File')
         fileMenu.addAction(openFile)
-        fileMenu.addAction(openBK)
         fileMenu.addAction(saveFile)
+        fileMenu.addAction(openBK)
         
         toolMenu = self.menubar.addMenu('&Tools')
         toolMenu.addAction(show_scale)
         toolMenu.addAction(capture_BK)
-        toolMenu.addAction(autofocus)
-#        toolMenu.addAction(stage)
-        toolMenu.addAction(find_focus_plane)
-        toolMenu.addAction(scan)
-        toolMenu.addAction(layer_search)
-        toolMenu.addAction(large_scan)
+        toolMenu.addAction(self.developer_options)
         toolMenu.addAction(restart)
         
         settingMenu = self.menubar.addMenu('&Setting')
@@ -199,13 +204,34 @@ class MainWindow(QMainWindow):
         HelpMenu.addAction(help_contact)
         HelpMenu.addAction(help_about)
         #HelpMenu.addAction(acknowledge)
+        
+        self.developerMenu = self.menubar.addMenu('Developer options')
+        self.developerMenu.addAction(autofocus)
+#        toolMenu.addAction(stage)
+        self.developerMenu.addAction(find_focus_plane)
+        self.developerMenu.addAction(scan)
+        self.developerMenu.addAction(layer_search)
+        self.developerMenu.addAction(large_scan)
+        self.developerMenu.menuAction().setVisible(False)
 
         initial_size = QAction('Home',self)
         initial_size.triggered.connect(self.initial_size)
         
+        self.open_file_button = QToolButton()
+        self.open_file_button.setIcon(QIcon(self.current_dir + 'openfile.png'))
+        self.open_file_button.setToolTip('Open file (Ctrl+O)')
+#        self.open_file_button.setShortcut('Ctrl+O')
+        self.open_file_button.clicked.connect(self.showFileDialog)
+        
+        self.save_file_button = QToolButton()
+        self.save_file_button.setIcon(QIcon(self.current_dir + 'save.png'))
+        self.save_file_button.setToolTip('Save file (Ctrl+S)')
+#        self.save_file_button.setShortcut('Ctrl+S')
+        self.save_file_button.clicked.connect(self.saveFileDialog)
+        
         self.zoom_in_button = QToolButton()
         self.zoom_in_button.setIcon(QIcon(self.current_dir+'zoom_in.png'))
-        self.zoom_in_button.setToolTip('zoom in')
+        self.zoom_in_button.setToolTip('Zoom in')
         self.zoom_in_button.clicked.connect(self.zoom_in)
         self.zoom_in_button.setCheckable(True)
         #self.zoom_in_button.setChecked(False)
@@ -221,7 +247,7 @@ class MainWindow(QMainWindow):
         
         self.straight_line_button = QToolButton()
         self.straight_line_button.setIcon(QIcon(self.current_dir+'straight_line.png'))
-        self.straight_line_button.setToolTip('draw straight line')
+        self.straight_line_button.setToolTip('Draw straight line')
         self.straight_line_button.clicked.connect(self.draw_straight_line)
         self.straight_line_button.setCheckable(True)
         self.draw_shape_line = False
@@ -239,7 +265,7 @@ class MainWindow(QMainWindow):
         
         self.rectangle_button = QToolButton()
         self.rectangle_button.setIcon(QIcon(self.current_dir+'square.png'))
-        self.rectangle_button.setToolTip('draw rectangle')
+        self.rectangle_button.setToolTip('Draw rectangle')
         self.rectangle_button.clicked.connect(self.draw_rectangle)
         self.rectangle_button.setCheckable(True)
         self.draw_shape_rectangle = False
@@ -256,7 +282,7 @@ class MainWindow(QMainWindow):
         
         self.circle_button = QToolButton()
         self.circle_button.setIcon(QIcon(self.current_dir+'circle.png'))
-        self.circle_button.setToolTip('draw circle')
+        self.circle_button.setToolTip('Draw circle')
         self.circle_button.clicked.connect(self.draw_circle)
         self.circle_button.setCheckable(True)
         self.draw_shape_circle = False
@@ -273,7 +299,7 @@ class MainWindow(QMainWindow):
         
         self.eraser_button = QToolButton()
         self.eraser_button.setIcon(QIcon(self.current_dir+'eraser.png'))
-        self.eraser_button.setToolTip('eraser')
+        self.eraser_button.setToolTip('Eraser')
         self.eraser_button.clicked.connect(self.erase_shape)
         self.eraser_button.setCheckable(True)
         self.erase = False
@@ -281,24 +307,24 @@ class MainWindow(QMainWindow):
         
         self.undo_draw_button = QToolButton()
         self.undo_draw_button.setIcon(QIcon(self.current_dir+'undo_gray_opacity.png'))
-        self.undo_draw_button.setToolTip('undo  Ctrl+Z')
+        self.undo_draw_button.setToolTip('Undo  Ctrl+Z')
         self.undo_draw_button.clicked.connect(self.undo_draw)
         self.undo_draw_button.setShortcut('Ctrl+Z')
         
         self.redo_draw_button = QToolButton()
         self.redo_draw_button.setIcon(QIcon(self.current_dir+'redo_gray_opacity.png'))
-        self.redo_draw_button.setToolTip('redo  Ctrl+Y')
+        self.redo_draw_button.setToolTip('Redo  Ctrl+Y')
         self.redo_draw_button.clicked.connect(self.redo_draw)
         self.redo_draw_button.setShortcut('Ctrl+Y')
         
         self.clear_draw_button = QToolButton()
         self.clear_draw_button.setIcon(QIcon(self.current_dir+'clear.png'))
-        self.clear_draw_button.setToolTip('clear drawing')
+        self.clear_draw_button.setToolTip('Clear drawing')
         self.clear_draw_button.clicked.connect(self.clear_draw)
         
         self.angle_button = QToolButton()
         self.angle_button.setIcon(QIcon(self.current_dir+'angle_measurement.png'))
-        self.angle_button.setToolTip('measure angle')
+        self.angle_button.setToolTip('Measure angle')
         self.angle_button.clicked.connect(self.angle_measurement)
         self.angle_button.setCheckable(True)
         self.start_angle_measurement = False
@@ -325,23 +351,28 @@ class MainWindow(QMainWindow):
         self.graphene_button.setToolTip('graphene auto detection')
         self.graphene_button.clicked.connect(self.graphene_hunt)
         
-        self.toolbar1 = self.addToolBar('zoom')
+        self.toolbar_file = self.addToolBar('file')
+        self.toolbar_file.addWidget(self.open_file_button)
+        self.toolbar_file.addWidget(self.save_file_button)
+        
+        self.toolbar_zoom = self.addToolBar('zoom')
         #self.toolbar1.addAction(initial_size)
-        self.toolbar1.addWidget(self.zoom_in_button)
+        self.toolbar_zoom.addWidget(self.zoom_in_button)
         
-        self.toolbar2 = self.addToolBar('drawing')
-        self.toolbar2.addWidget(self.straight_line_button)
-        self.toolbar2.addWidget(self.rectangle_button)
-        self.toolbar2.addWidget(self.circle_button)
-        self.toolbar2.addWidget(self.eraser_button)
-        self.toolbar2.addWidget(self.undo_draw_button)
-        self.toolbar2.addWidget(self.redo_draw_button)
-        self.toolbar2.addWidget(self.clear_draw_button)
+        self.toolbar_drawing = self.addToolBar('drawing')
+        self.toolbar_drawing.addWidget(self.straight_line_button)
+        self.toolbar_drawing.addWidget(self.rectangle_button)
+        self.toolbar_drawing.addWidget(self.circle_button)
+        self.toolbar_drawing.addWidget(self.eraser_button)
+        self.toolbar_drawing.addWidget(self.undo_draw_button)
+        self.toolbar_drawing.addWidget(self.redo_draw_button)
+        self.toolbar_drawing.addWidget(self.clear_draw_button)
         
-        self.toolbar3 = self.addToolBar('advanced tools')
-        self.toolbar3.addWidget(self.angle_button)
-        self.toolbar3.addWidget(self.target_button)
-        #self.toolbar3.addWidget(self.graphene_button)
+        self.toolbar_advanced_tools = self.addToolBar('advanced tools')
+        self.toolbar_advanced_tools.addWidget(self.angle_button)
+        
+        self.toolbar_search = self.addToolBar('layer search')
+        self.toolbar_search.addWidget(self.target_button)
         
         self.toolbar = self.addToolBar(' ')
 
@@ -364,6 +395,23 @@ class MainWindow(QMainWindow):
         
         button_reset_contrast = QPushButton('Reset Contrast', self)
         button_reset_contrast.clicked.connect(self.rgb_initialize)
+        
+        self.combo_custom_contrast = QComboBox(self)
+        self.read_previous_custom_contrast()
+        try:
+            self.generate_custom_contrast_items()
+        except:
+            QMessageBox.critical(self, "File damaged", "The supporting file custom_contrast.txt "
+                                  "has been damaged! All custom settings will be deleted.")
+            os.remove(self.custom_contrast_file)
+            self.read_previous_custom_contrast()
+            self.generate_custom_contrast_items()
+        self.combo_custom_contrast.activated[str].connect(self.custom_contrast)
+        self.combo_custom_contrast.setFixedHeight(26)
+        
+        self.hbox_change_contrast = QHBoxLayout()
+        self.hbox_change_contrast.addWidget(button_reset_contrast)
+        self.hbox_change_contrast.addWidget(self.combo_custom_contrast)
         
         self.button_saveto = QPushButton('Save path', self)
         self.button_saveto.setToolTip('This is the folder where your released files will be saved')
@@ -398,7 +446,8 @@ class MainWindow(QMainWindow):
         self.combo_mag.activated[str].connect(self.set_magnification)
         self.magnification = int(self.combo_mag.currentText()[:-1])
 
-        
+        self.crop_left_rate = 0.17
+        self.crop_right_rate = 0.83
         self.cb_crop = QCheckBox('Crop', self)
         self.cb_crop.setChecked(True)
         self.cb_crop.toggle()
@@ -429,7 +478,8 @@ class MainWindow(QMainWindow):
 
         self.pixmap = QPixmap()
         
-        self.lbl_main = QLabel(self)
+        self.lbl_main = DropLabel('',self)
+        self.lbl_main.new_img.connect(self.accept_new_img)
         self.lbl_main.setAlignment(Qt.AlignCenter)
         self.lbl_main.setPixmap(self.pixmap)
         
@@ -472,7 +522,7 @@ class MainWindow(QMainWindow):
         self.vbox_r.addStretch(1)
         self.vbox_r.addLayout(self.sld.grid)
         #vbox_r.addStretch(1)
-        self.vbox_r.addWidget(button_reset_contrast)
+        self.vbox_r.addLayout(self.hbox_change_contrast)
         self.vbox_r.addStretch(2)
         self.vbox_r.addWidget(self.button_saveto, Qt.AlignBottom)
         #vbox_r.addStretch(1)
@@ -518,6 +568,8 @@ class MainWindow(QMainWindow):
         self.setObjectName('MainWindow')
         
 #        self.setStyleSheet('#MainWindow{background-color: green}')
+    
+    
     
     def large_scan(self):
         self.large_scan_thread = LargeScanThread(self.camera, self.substrate_thickness)
@@ -583,14 +635,6 @@ class MainWindow(QMainWindow):
         if s == 'stop':
             self.autofocus_thread.terminate()
         
-    def change_theme(self):
-        col = QColorDialog.getColor()
-
-        if col.isValid():
-            self.setStyleSheet("#MainWindow { background-color: %s }"
-                % col.name())
-        pass
-        
           
     def stage(self):
         self.stage_thread = StageThread(self.camera)
@@ -601,12 +645,119 @@ class MainWindow(QMainWindow):
 #        print('123')
         if s == 'stop':
             self.stage_thread.terminate()
+    
+    
+    def show_developer_options(self):
+        if self.developer_options.isChecked():
+            reply = QMessageBox.information(self, "Developer options", 'Do you want to '
+                                          'open developer options? These tools are designed '
+                                          'for advanced debugging usage.',
+                                          QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+            if reply == QMessageBox.Yes:
+                self.developerMenu.menuAction().setVisible(True)
+        else:
+            self.developerMenu.menuAction().setVisible(False)
+    
+    
+    def change_theme(self):
+        col = QColorDialog.getColor()
+
+        if col.isValid():
+            self.setStyleSheet("#MainWindow { background-color: %s }"
+                % col.name())
+        pass
+    
+    
+    def custom_contrast(self, text):
+        if text == 'Custom':
+            i = 1
+            while i < 1000:
+                if 'custom(' + str(i) + ')' in self.custom_contrast_dic:
+                    i += 1
+                else:
+                    break
+            self.custom_contrast_widget = CustomContrast('custom(' + str(i) + ')')
+            self.custom_contrast_widget.confirmed.connect(self.new_custom_contrast)
+            self.custom_contrast_widget.show()
+        elif text == 'Delete':
+            self.delete_custom_contrast_widget = DeleteCustomContrast(sorted(self.custom_contrast_list))
+            self.delete_custom_contrast_widget.confirmed.connect(self.delete_custom_contrast)
+            self.delete_custom_contrast_widget.show()
+            pass
+        else:
+            self.brightness, self.contrast_coe, self.r_min, self.r_max, self.g_min, \
+            self.g_max, self.b_min, self.b_max = self.custom_contrast_dic[text]
+            self.set_rgb_value()
+    
+    
+    def delete_custom_contrast(self, s):
+        if s == 'confirmed':
+            for item in self.delete_custom_contrast_widget.delte_list:
+                self.custom_contrast_dic.pop(item)
+            js = json.dumps(self.custom_contrast_dic)
+            with open(self.custom_contrast_file, 'w') as f:
+                f.write(js)
+            self.delete_custom_contrast_widget.close()
+            self.combo_custom_contrast.clear()
+            self.generate_custom_contrast_items()
+
+    
+    def new_custom_contrast(self, s):
+        if s == 'confirmed':
+            record_contrast = [self.brightness, self.contrast_coe, self.r_min, \
+                               self.r_max, self.g_min, self.g_max, self.b_min, self.b_max]
+            self.custom_contrast_dic[self.custom_contrast_widget.name] = record_contrast
+            self.custom_contrast_widget.close()
+            js = json.dumps(self.custom_contrast_dic)
+            with open(self.custom_contrast_file, 'w') as f:
+                f.write(js)
+            self.combo_custom_contrast.clear()
+            self.generate_custom_contrast_items()
             
+    def generate_custom_contrast_items(self):        
+        self.custom_contrast_list = list(self.custom_contrast_dic.keys())[1:]
+        self.combo_custom_contrast.addItem('Custom')
+        if len(self.custom_contrast_list) > 0:
+            self.combo_custom_contrast.addItems(sorted(self.custom_contrast_list))
+        self.combo_custom_contrast.addItem('Delete')
+    
+    def read_previous_custom_contrast(self):
+        if not os.path.isfile(self.custom_contrast_file):
+            f = open(self.custom_contrast_file, 'w')
+            f.close()
+        with open(self.custom_contrast_file, 'r') as f:
+            js = f.read()
+        try:
+            self.custom_contrast_dic = json.loads(js)
+            print(self.custom_contrast_dic)
+        except:
+            QMessageBox.critical(self, "File damaged", "The supporting file custom_contrast.txt "
+                                  "has been damaged! All custom settings will be deleted.")
+            dic = {'Custom' : [0, 0, 0, 0, 0, 0, 0, 0]}
+            js = json.dumps(dic)
+            with open(self.custom_contrast_file, 'w') as f:
+                f.write(js)
+            self.custom_contrast_dic = dic
+            
+        
     def show_scale_method(self):
         if self.show_scale:
             self.show_scale = False
         else:
             self.show_scale = True
+    
+    def accept_new_img(self, s): 
+        if s == 'new':
+            self.showFileDialog_folder = get_folder_from_file(self.lbl_main.img_path)
+            self.button_release.setChecked(False)
+            self.button_live.setChecked(False)
+            self.live_timer.stop()
+            self.openfile = True
+            self.rgb_initialize()
+            self.img_raw = cv2.imread(self.lbl_main.img_path)
+            self.img_raw_not_cropped = self.img_raw            
+            self.openfile_timer.start(40)
+#            print('yes')
     
     def set_calibration(self):
         self.input_calibration = CalibrationEdit(self.calibration)
@@ -820,7 +971,7 @@ class MainWindow(QMainWindow):
                                     'line as zero degree')
         else:
             self.start_angle_measurement = False
-            self.angle_button.setChecked(False)
+            self.angle_button.setChecked(False) 
 #        QMessageBox.information(self, 'Developing...','Angle measurement function '+\
 #                                'is developing... ')
     def graphene_hunt(self):
@@ -876,7 +1027,7 @@ class MainWindow(QMainWindow):
                 self.capture_bk_average = matrix_divide(self.capture_bk_average, len(self.capture_bk_frame))
                 self.capture_bk_average = float2uint8(self.capture_bk_average)
                 self.progress_bar.close()
-                if self.is_Crop:
+                if self.CP:
                     background_name = 'crop_x' + str(self.magnification) + '.png'
                 else:
                     background_name = 'x' + str(self.magnification) + '.png'
@@ -1078,22 +1229,22 @@ class MainWindow(QMainWindow):
                     
             elif event.buttons() == Qt.LeftButton and self.DT:
                 self.mouse_pos_correct_line()
+                self.DT_Line = Line(self.mouse_line_x1, self.mouse_line_y1, \
+                                    self.mouse_line_x2, self.mouse_line_y2)
                 self.DT_draw = True
                 
             elif event.buttons() == Qt.LeftButton and self.CT:
                 self.mouse_pos_correct_line()
                 self.line_num = len(self.contrast_line)
-                if len(self.contrast_line)<2:
-                    self.contrast_line.append([[self.mouse_line_x1, self.mouse_line_y1]])
-                    self.contrast_line[self.line_num].append([self.mouse_line_x2, self.mouse_line_y2])
-                    
+                if len(self.contrast_line) < 2:
+                    self.contrast_line.append(Line(self.mouse_line_x1, self.mouse_line_y1, \
+                                                   self.mouse_line_x2, self.mouse_line_y2))
                 else:
                     self.contrast_line=[]
-                    self.contrast_line.append([[self.mouse_line_x1, self.mouse_line_y1]])
-                    self.contrast_line[0].append([self.mouse_line_x2, self.mouse_line_y2])
+                    self.contrast_line.append(Line(self.mouse_line_x1, self.mouse_line_y1, \
+                                                   self.mouse_line_x2, self.mouse_line_y2))
                     self.line_num = 0
                 self.CT_draw = True
-                pass
             
             elif event.buttons() == Qt.LeftButton and self.draw_shape_line:
                 self.mouse_pos_correct_line()
@@ -1135,10 +1286,12 @@ class MainWindow(QMainWindow):
             
             if event.buttons() == Qt.LeftButton and self.choosing_base_line:
                 self.mouse_pos_correct_line()
-                x_temp, y_temp = Pos_in_Circle(self.mouse_line_x1, self.mouse_line_y1,\
-                                               r = 5)
+                temp = Point(self.mouse_line_x1, self.mouse_line_y1)
+                temp.x1_show, temp.y1_show = self.mouse_pos_ratio_change_line(Shape = temp)
+                x_temp, y_temp = Pos_in_Circle(temp.x1_show, temp.y1_show, r = 7 )
+                
                 for i in range(len(x_temp)):
-                    if x_temp[i] < self.canvas_blank.shape[1] and y_temp[i] < self.canvas_blank.shape[0]:
+                    if 0 <= x_temp[i] < self.canvas_blank.shape[1] and 0 <= y_temp[i] < self.canvas_blank.shape[0]:
                         num = self.canvas_blank[y_temp[i], x_temp[i]]
                         if num != 0:
                             for j in range(len(self.draw_shape_list)):
@@ -1158,7 +1311,6 @@ class MainWindow(QMainWindow):
                                     self.draw_shape_list[j].width = 2
                                     self.draw_shape_list[j].prop = 'base line'
                                     break
-                                    
                             break
             
             elif event.buttons() == Qt.RightButton:
@@ -1168,6 +1320,7 @@ class MainWindow(QMainWindow):
                     self.zoom_in_button.setChecked(True)
                     self.zoomed = False
                     self.zoom_draw_able = True
+    
     
     def mouseMoveEvent(self, event):
         lim_x1 = self.lbl_main.x()
@@ -1184,29 +1337,31 @@ class MainWindow(QMainWindow):
                 
             if self.DT_draw:        
                 self.mouse_pos_correct_line()
+                self.DT_Line.x2 = self.mouse_line_x2
+                self.DT_Line.y2 = self.mouse_line_y2
             
             if self.CT_draw:
                 self.mouse_pos_correct_line()
-                self.contrast_line[self.line_num][1][0] = self.mouse_line_x2
-                self.contrast_line[self.line_num][1][1] = self.mouse_line_y2
+                self.contrast_line[-1].x2 = self.mouse_line_x2
+                self.contrast_line[-1].y2 = self.mouse_line_y2
             
             if self.drawing_shape_line:
                 self.mouse_pos_correct_line()
                 self.draw_shape_action_list[-1].x2 = self.mouse_line_x2
                 self.draw_shape_action_list[-1].y2 = self.mouse_line_y2
-                self.draw_shape_action_list[-1].pos_refresh()
+#                self.draw_shape_action_list[-1].pos_refresh()
                 
             if self.drawing_shape_rectangle:
                 self.mouse_pos_correct_line()
                 self.draw_shape_action_list[-1].x2 = self.mouse_line_x2
                 self.draw_shape_action_list[-1].y2 = self.mouse_line_y2
-                self.draw_shape_action_list[-1].pos_refresh()
+#                self.draw_shape_action_list[-1].pos_refresh()
                 
             if self.drawing_shape_circle:
                 self.mouse_pos_correct_line()
                 self.draw_shape_action_list[-1].x2 = self.mouse_line_x2
                 self.draw_shape_action_list[-1].y2 = self.mouse_line_y2
-                self.draw_shape_action_list[-1].pos_refresh()
+#                self.draw_shape_action_list[-1].pos_refresh()
                 
             if self.drawing_eraser:
                 self.mouse_pos_correct_line()
@@ -1215,7 +1370,7 @@ class MainWindow(QMainWindow):
     #            self.eraser.pos_refresh()
                 self.draw_shape_action_list[-1].x1 = self.mouse_line_x2
                 self.draw_shape_action_list[-1].y1 = self.mouse_line_y2
-                self.draw_shape_action_list[-1].pos_refresh()
+#                self.draw_shape_action_list[-1].pos_refresh()
             
             
             
@@ -1263,6 +1418,19 @@ class MainWindow(QMainWindow):
             
         if self.mouse_line_y2 >= self.img_bfDT_height:
             self.mouse_line_y2 = self.img_bfDT_height -1
+        self.mouse_pos_show2raw()
+            
+    def mouse_pos_show2raw(self):   
+        scale = (self.zoom_x2 - self.zoom_x1) / self.img_show.shape[1]
+        self.mouse_line_x1 = self.mouse_line_x1 * scale + self.zoom_x1
+        self.mouse_line_x2 = self.mouse_line_x2 * scale + self.zoom_x1
+        self.mouse_line_y1 = self.mouse_line_y1 * scale + self.zoom_y1
+        self.mouse_line_y2 = self.mouse_line_y2 * scale + self.zoom_y1
+            
+        if self.CP:
+            self.mouse_line_x1 += self.img_raw.shape[1] * self.crop_left_rate / (self.crop_right_rate - self.crop_left_rate)
+            self.mouse_line_x2 += self.img_raw.shape[1] * self.crop_left_rate / (self.crop_right_rate - self.crop_left_rate)
+        
         
     def mouse_pos_correct_rec(self):
         
@@ -1283,7 +1451,7 @@ class MainWindow(QMainWindow):
         = self.mouse_pos_correct((self.mouse_temp_x1), (self.mouse_temp_x2), \
                                  (self.mouse_temp_y1), (self.mouse_temp_y2))
         
-        if self.mouse_rec_x1 == self.mouse_rec_x2 or self.mouse_rec_y1 == self.mouse_rec_y2 \
+        if abs(self.mouse_rec_x1 - self.mouse_rec_x2) < 4 or abs(self.mouse_rec_y1 - self.mouse_rec_y2) < 4 \
         or self.mouse_rec_x1 >= self.img_atmouse_width or self.mouse_rec_y1 >= self.img_atmouse_height:
             self.mouse_rec_x1, self.mouse_rec_y1 = 0, 0
             self.mouse_rec_x2, self.mouse_rec_y2 = self.img_atmouse_width - 1, self.img_atmouse_height - 1
@@ -1299,10 +1467,10 @@ class MainWindow(QMainWindow):
         img_for_mouse_correct_width = self.img_show.shape[1]
         img_for_mouse_correct_height = self.img_show.shape[0]
         
-        x1 -= int(lbl_main_x + lbl_main_width/2 - img_for_mouse_correct_width/2)
-        x2 -= int(lbl_main_x + lbl_main_width/2 - img_for_mouse_correct_width/2)
-        y1 -= int(lbl_main_y + lbl_main_height/2 - img_for_mouse_correct_height/2)
-        y2 -= int(lbl_main_y + lbl_main_height/2 - img_for_mouse_correct_height/2)
+        x1 -= round(lbl_main_x + lbl_main_width/2 - img_for_mouse_correct_width/2)
+        x2 -= round(lbl_main_x + lbl_main_width/2 - img_for_mouse_correct_width/2)
+        y1 -= round(lbl_main_y + lbl_main_height/2 - img_for_mouse_correct_height/2)
+        y2 -= round(lbl_main_y + lbl_main_height/2 - img_for_mouse_correct_height/2)
         
         x1 = max(0, x1)
         y1 = max(0, y1)
@@ -1324,9 +1492,9 @@ class MainWindow(QMainWindow):
             
             self.get_bk_normalization()
         else:
-            QMessageBox.information(self, 'Crop failed','You must exit '+\
-                                'zoom-in mode before cropping. Click right '+\
-                                'button and click zoom-in icon in toolbar to exit')
+            QMessageBox.information(self, 'Crop failed','You must exit '
+                                'zoom-in mode before cropping. Click right '
+                                'button or click zoom-in icon in toolbar to exit.')
     
     def is_SB(self, state):
         if state == Qt.Checked:
@@ -1521,7 +1689,7 @@ class MainWindow(QMainWindow):
             self.refresh_show()
             self.show_on_screen()
             self.refresh_raw()
-            while os.path.isfile(self.release_folder+'/'+self.date+'-'+str(self.release_count)+'.bmp'):
+            while os.path.isfile(self.release_folder+'/'+self.date+'-'+str(self.release_count)+'.png'):
                 self.release_count += 1
             img_release_temp.append(self.img_raw)
         img_release = img_release_temp[0].astype(int)
@@ -1530,9 +1698,9 @@ class MainWindow(QMainWindow):
         #print(len(img_release_temp))
         img_release = img_release / len(img_release_temp)
         self.img_release = img_release.astype(np.uint8)
-        cv2.imwrite(self.release_folder+'/'+self.date+'-'+str(self.release_count)+'.bmp', self.img_release)
+        cv2.imwrite(self.release_folder+'/'+self.date+'-'+str(self.release_count)+'.png', self.img_release)
         #cv2.imshow('released', self.img_release)
-        self.live_timer.start(40)        
+        self.live_timer.start(40)
         
               
     def start_live(self):
@@ -1558,25 +1726,31 @@ class MainWindow(QMainWindow):
         self.img_show = self.img_raw#其实这两行代码结果是差不多的
         self.display_resize()#先resize是为了加快运算
         if self.CP:
-            self.left_crop = int(self.img_show.shape[1]*0.17)
-            self.right_crop = int(self.img_show.shape[1]*0.83)
+            self.left_crop = int(round(self.img_show.shape[1]*self.crop_left_rate))
+            self.right_crop = int(round(self.img_show.shape[1]*self.crop_right_rate))
             self.img_show = self.img_show[:, self.left_crop:self.right_crop]
             #self.display_resize()
             self.img_show = np.require(self.img_show, np.uint8, 'C')
             self.display_resize()
-            self.left_crop_raw = int(self.img_raw.shape[1]*0.17)
-            self.right_crop_raw = int(self.img_raw.shape[1]*0.83)  
-            self.img_raw = self.img_raw[:, self.left_crop_raw:self.right_crop_raw]
+            self.left_crop_raw = int(round(self.img_raw.shape[1]*0.17))
+            self.right_crop_raw = int(round(self.img_raw.shape[1]*0.83))  
+            self.img_raw = self.img_raw[:, self.left_crop_raw: self.right_crop_raw]
 
         
-        if self.zoom_draw_start :
+        self.zoom_x1, self.zoom_y1 = 0, 0
+        self.zoom_x2, self.zoom_y2 = self.img_raw.shape[1]-1, self.img_raw.shape[0]-1
+        if self.zoom_draw_start:
             cv2.rectangle(self.img_show,(self.mouse_rec_x1,self.mouse_rec_y1),\
                           (self.mouse_rec_x2, self.mouse_rec_y2),(0,0,255),2)
         elif self.zoomed:
             #self.mouse_pos_ratio_change_rec()
             scale_ratio = self.img_raw.shape[1]/self.img_bfzoom_width
-            self.img_show = self.img_raw[int(self.mouse_rec_y1*scale_ratio):int(self.mouse_rec_y2*scale_ratio),\
-                                         int(self.mouse_rec_x1*scale_ratio):int(self.mouse_rec_x2*scale_ratio)]
+            
+            self.zoom_y1, self.zoom_y2 = self.mouse_rec_y1*scale_ratio, self.mouse_rec_y2*scale_ratio
+            self.zoom_x1, self.zoom_x2 = self.mouse_rec_x1*scale_ratio, self.mouse_rec_x2*scale_ratio
+
+            self.img_show = self.img_raw[int(round(self.zoom_y1)): max(int(round(self.zoom_y2)), int(round(self.zoom_y1)) + 1),\
+                                         int(round(self.zoom_x1)): max(int(round(self.zoom_x2)), int(round(self.zoom_x1)) + 1)]
             #print(self.img_show.shape[0],self.img_show.shape[1])
             self.img_show = np.require(self.img_show, np.uint8, 'C')
 #            kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]], np.float32) #锐化
@@ -1612,15 +1786,11 @@ class MainWindow(QMainWindow):
         
 
         if self.DT_draw:
-            self.mouse_line_x1, self.mouse_line_y1 = \
-            self.mouse_pos_ratio_change_line(self.mouse_line_x1,\
-                                             self.mouse_line_y1)
-            self.mouse_line_x2, self.mouse_line_y2 = \
-            self.mouse_pos_ratio_change_line(self.mouse_line_x2,\
-                                             self.mouse_line_y2)
+            self.DT_Line.x1_show, self.DT_Line.y1_show, self.DT_Line.x2_show, self.DT_Line.y2_show \
+            = self.mouse_pos_ratio_change_line(Shape = self.DT_Line)
+            self.DT_Line.pos_refresh()
             #self.mouse_pos_ratio_change_line()
-            cv2.line(self.img_show,(self.mouse_line_x1,self.mouse_line_y1),\
-                    (self.mouse_line_x2, self.mouse_line_y2),(255,0,0),2)
+            cv2.line(self.img_show,*self.DT_Line.pos,(255,0,0),2)
             '''
             self.distance = np.sqrt((self.mouse_line_x2-self.mouse_line_x1)**2\
                                     +(self.mouse_line_y2-self.mouse_line_y1)**2)
@@ -1630,58 +1800,55 @@ class MainWindow(QMainWindow):
                 self.distance *= zoom_ratio
             self.distance = self.distance*1000/self.magnification*self.calibration
             '''
-            self.distance = self.calculate_distance(self.mouse_line_x1, self.mouse_line_y1,\
-                                                    self.mouse_line_x2, self.mouse_line_y2)
+            self.distance = self.calculate_distance(self.DT_Line.x1, self.DT_Line.y1,\
+                                                    self.DT_Line.x2, self.DT_Line.y2)
             self.distance_lbl.setText(str(round(self.distance,2))+' um')
             cv2.putText(self.img_show, str(round(self.distance,2)), \
-                        (round((self.mouse_line_x1 + self.mouse_line_x2)/2),\
-                         round((self.mouse_line_y1 + self.mouse_line_y2)/2)),self.font,\
+                        (round((self.DT_Line.x1_show + self.DT_Line.x2_show)/2),\
+                         round((self.DT_Line.y1_show + self.DT_Line.y2_show)/2)),self.font,\
                          0.7, (255,0,0), 1, cv2.LINE_AA)
         if self.CT_draw:
             if len(self.contrast_line) == 2:
-                self.contrast_line[0][0][0], self.contrast_line[0][0][1] = \
-                self.mouse_pos_ratio_change_line(self.contrast_line[0][0][0], \
-                                                 self.contrast_line[0][0][1])
-                self.contrast_line[0][1][0], self.contrast_line[0][1][1] = \
-                self.mouse_pos_ratio_change_line(self.contrast_line[0][1][0], \
-                                                 self.contrast_line[0][1][1])
-                self.contrast_line[1][0][0], self.contrast_line[1][0][1] = \
-                self.mouse_pos_ratio_change_line(self.contrast_line[1][0][0], \
-                                                 self.contrast_line[1][0][1])
-                self.contrast_line[1][1][0], self.contrast_line[1][1][1] = \
-                self.mouse_pos_ratio_change_line(self.contrast_line[1][1][0], \
-                                                 self.contrast_line[1][1][1])
+                for line in self.contrast_line:
+                    line.x1_show, line.y1_show, line.x2_show, line.y2_show \
+                        = self.mouse_pos_ratio_change_line(Shape = line)
+                    
+                    line.pos_refresh()
                 
                 
                 self.contrast \
                 = calculate_contrast(self.img_show,\
-                   self.contrast_line[0][0][0], self.contrast_line[0][0][1],\
-                   self.contrast_line[0][1][0], self.contrast_line[0][1][1],\
-                   self.contrast_line[1][0][0], self.contrast_line[1][0][1],\
-                   self.contrast_line[1][1][0], self.contrast_line[1][1][1])
+                   self.contrast_line[0].x1_show, self.contrast_line[0].y1_show,\
+                   self.contrast_line[0].x2_show, self.contrast_line[0].y2_show,\
+                   self.contrast_line[1].x1_show, self.contrast_line[1].y1_show,\
+                   self.contrast_line[1].x2_show, self.contrast_line[1].y2_show)
                 #for i in range(len(xtemp)):
                  #   cv2.circle(self.img_show,(xtemp[i],ytemp[i]),1,(0,0,255))
                 
                 #self.contrast = 0
                 cv2.putText(self.img_show, str(round(self.contrast,4)), \
-                        (round((self.contrast_line[1][0][0] + self.contrast_line[1][1][0])/2),\
-                         round((self.contrast_line[1][0][1] + self.contrast_line[1][1][1])/2)),self.font,\
+                        (round((self.contrast_line[1].x1_show + self.contrast_line[1].x2_show)/2),\
+                         round((self.contrast_line[1].y1_show + self.contrast_line[1].y2_show)/2)),self.font,\
                          0.7, (255,0,0), 1, cv2.LINE_AA)
             else:
                 self.contrast = 0
             self.contrast_lbl.setText(str(round(self.contrast,4)))
-            for i in range(len(self.contrast_line)):
-                cv2.line(self.img_show, \
-                         (self.contrast_line[i][0][0], self.contrast_line[i][0][1]),\
-                         (self.contrast_line[i][1][0], self.contrast_line[i][1][1]),\
-                         (255,0,0),2)
+            for line in self.contrast_line:
+                line.x1_show, line.y1_show, line.x2_show, line.y2_show \
+                    = self.mouse_pos_ratio_change_line(Shape = line)
+                line.pos_refresh()
+                
+                cv2.line(self.img_show, *line.pos, (255,0,0),2)
         
         if self.drawing_eraser:
             eraser_temp = self.draw_shape_action_list[-1]
+            eraser_temp.x1_show, eraser_temp.y1_show \
+            = self.mouse_pos_ratio_change_line(Shape = eraser_temp)
+            eraser_temp.pos_refresh()
             cv2.circle(self.img_show, *eraser_temp.pos, eraser_temp.size, \
                        eraser_temp.color, eraser_temp.width)
             cv2.circle(self.img_show, *eraser_temp.pos, eraser_temp.size, \
-                       (0,0,0), 1)
+                       (100,100,100), 2)
             self.find_eraser_num()
         if len(self.draw_shape_action_list) > 0:
             self.generate_draw_shape_list()
@@ -1691,15 +1858,17 @@ class MainWindow(QMainWindow):
         if self.show_scale:
             self.draw_graduated_scale()
         
-        self.mouse_pos_ratio_change_done()
+#        self.mouse_pos_ratio_change_done()
     
     
     
     def draw_graduated_scale(self):
-        img_width = self.img_show.shape[1]        
+        scale_for_raw = max(1, self.img_show.shape[0]/1000)
+        scale = (self.zoom_x2 - self.zoom_x1) / self.img_show.shape[1]
+        img_width = self.img_show.shape[1]
         img_height = self.img_show.shape[0]
-        width = self.calculate_distance(0, img_width, 0, 0)
-        height = self.calculate_distance(0, img_height, 0, 0)
+        width = self.calculate_distance(0, img_width * scale, 0, 0)
+        height = self.calculate_distance(0, img_height * scale, 0, 0)
         dimension = max(width, height)
         if dimension > 2000:
             unit = 400
@@ -1715,39 +1884,38 @@ class MainWindow(QMainWindow):
             unit = 10
         else:
             unit = 5
-        standard_D = self.calculate_distance(0,1000,0,0)
+        standard_D = self.calculate_distance(0, 1000*scale, 0, 0)
         unit_for_img = round(unit/standard_D*1000).astype(int)
-        cv2.line(self.img_show, (0,2), (img_width, 2), (255,0,0),3)
-        cv2.line(self.img_show, (2,0), (2, img_height), (255,0,0),3)
+        cv2.line(self.img_show, (0, int(2*scale_for_raw)), (img_width, int(2*scale_for_raw)), (255, 0, 0), int(3*scale_for_raw))
+        cv2.line(self.img_show, (int(2*scale_for_raw), 0), (int(2*scale_for_raw), img_height), (255, 0, 0), int(3*scale_for_raw))
         
         scale_for_img = unit_for_img
         scale_for_text = unit
-        cv2.putText(self.img_show, str(self.magnification)+'x', (5,25),self.font, 0.7, (255,0,0), 2, cv2.LINE_AA)
+        cv2.putText(self.img_show, str(self.magnification)+'x', (int(5*scale_for_raw), int(25*scale_for_raw)),self.font, 0.7*scale_for_raw, (255,0,0), int(2*scale_for_raw), cv2.LINE_AA)
         while scale_for_img < img_width:
-            cv2.line(self.img_show, (scale_for_img, 0), (scale_for_img, 15), (255,0,0), 2)
+            cv2.line(self.img_show, (scale_for_img, 0), (scale_for_img, int(15*scale_for_raw)), (255,0,0), int(2*scale_for_raw))
             text = str(scale_for_text)
-            cv2.putText(self.img_show, text, (scale_for_img-15, 30), self.font, 0.5,(255,0,0),\
-                        1, cv2.LINE_AA)
+            cv2.putText(self.img_show, text, (scale_for_img-int(15*scale_for_raw), int(30*scale_for_raw)), self.font, 0.5*scale_for_raw,(255,0,0),\
+                        int(1*scale_for_raw), cv2.LINE_AA)
             scale_for_img += unit_for_img
             scale_for_text += unit
         
         scale_for_img = unit_for_img
         scale_for_text = unit
         while scale_for_img < img_height:
-            cv2.line(self.img_show, (0, scale_for_img), (15, scale_for_img), (255,0,0), 2)
+            cv2.line(self.img_show, (0, scale_for_img), (int(15*scale_for_raw), scale_for_img), (255,0,0), int(2*scale_for_raw))
             text = str(scale_for_text)
-            cv2.putText(self.img_show, text, (5, scale_for_img-5), self.font, 0.5,(255,0,0),\
-                        1, cv2.LINE_AA)
+            cv2.putText(self.img_show, text, (int(5*scale_for_raw), scale_for_img-int(5*scale_for_raw)), self.font, 0.5*scale_for_raw, (255,0,0),\
+                        int(1*scale_for_raw), cv2.LINE_AA)
             scale_for_img += unit_for_img
             scale_for_text += unit
     
     
     def calculate_distance(self, x1, y1, x2, y2):
         distance = np.sqrt((x2-x1)**2+(y2-y1)**2)
-        distance /= self.img_show.shape[0]
-        if self.zoomed:
-            zoom_ratio = (self.mouse_rec_y2 - self.mouse_rec_y1)/self.img_atmouse_height           
-            distance *= zoom_ratio
+        distance /= self.img_raw.shape[0]
+#        if self.CP:
+#            distance *= 1/(self.crop_right_rate - self.crop_left_rate)
         distance = distance*1000/self.magnification*self.calibration
         return distance
     
@@ -1765,7 +1933,10 @@ class MainWindow(QMainWindow):
             else:
                 for shape in self.draw_shape_list:
                     if shape.prop == 'line' or shape.prop == 'base line':
-                        angle = calculate_angle(*self.base_line[0].pos, *shape.pos)
+                        angle = calculate_angle((self.base_line[0].x1, self.base_line[0].y1), \
+                                                (self.base_line[0].x2, self.base_line[0].y2), \
+                                                (shape.x1, shape.y1),\
+                                                (shape.x2, shape.y2))
                         cv2.putText(self.img_show, str(round(angle,2)), shape.pos[1], \
                                     self.font, 0.7, (255,0,0), 2, cv2.LINE_AA)
                 
@@ -1795,7 +1966,7 @@ class MainWindow(QMainWindow):
         x_temp, y_temp = Pos_in_Circle(*list(self.draw_shape_action_list[-1].pos[0]), \
                                        self.draw_shape_action_list[-1].size)
         for i in range(len(x_temp)):
-            if x_temp[i] < self.canvas_blank.shape[1] and y_temp[i] < self.canvas_blank.shape[0]:
+            if 0 <= x_temp[i] < self.canvas_blank.shape[1] and 0 <= y_temp[i] < self.canvas_blank.shape[0]:
                 num = self.canvas_blank[y_temp[i], x_temp[i]]
                 if num != 0:
                     self.draw_shape_action_list[-1].num.append(num)
@@ -1810,8 +1981,10 @@ class MainWindow(QMainWindow):
         if len(self.draw_shape_list) == 0:
             pass
         for shape in self.draw_shape_list:
-            shape.x1, shape.y1 = self.mouse_pos_ratio_change_line(shape.x1, shape.y1)
-            shape.x2, shape.y2 = self.mouse_pos_ratio_change_line(shape.x2, shape.y2)
+            shape.x1_show, shape.y1_show, shape.x2_show, shape.y2_show \
+            = self.mouse_pos_ratio_change_line(Shape = shape)
+            
+#            shape.x2, shape.y2 = self.mouse_pos_ratio_change_line(shape.x2, shape.y2)
             shape.pos_refresh()
             if shape.prop == 'line' or shape.prop == 'base line':
                 x_temp, y_temp = Pos_of_Line(*list(shape.pos[0]), *list(shape.pos[1]))
@@ -1820,8 +1993,10 @@ class MainWindow(QMainWindow):
                                                       shape.num)
                 cv2.line(self.img_show, *shape.pos, shape.color, shape.width)
                 if shape.show_distance:
-                    distance = self.calculate_distance(shape.x1, shape.y1, shape.x2, shape.y2)
-                    pos = (round((shape.x1 + shape.x2)/2), round((shape.y1 + shape.y2)/2))
+                    distance = self.calculate_distance(shape.x1, shape.y1, \
+                                                       shape.x2, shape.y2)
+                    pos = (int((shape.x1_show + shape.x2_show)/2), \
+                           int((shape.y1_show + shape.y2_show)/2))
                     cv2.putText(self.img_show, str(round(distance, 2)), pos, \
                                 self.font, 0.7, (255,0,0), 1, cv2.LINE_AA)
                 
@@ -1835,8 +2010,8 @@ class MainWindow(QMainWindow):
                                                         shape.x2, shape.y1)
                     distance2 = self.calculate_distance(shape.x1, shape.y1,\
                                                         shape.x1, shape.y2)
-                    pos1 = (round((shape.x1 + shape.x2)/2),shape.y1)
-                    pos2 = (shape.x1, round((shape.y1 + shape.y2)/2))
+                    pos1 = (int((shape.x1_show + shape.x2_show)/2), shape.y1_show)
+                    pos2 = (shape.x1_show, int((shape.y1_show + shape.y2_show)/2))
                     cv2.putText(self.img_show, str(round(distance1, 2)), pos1, \
                                 self.font, 0.7, (255,0,0), 1, cv2.LINE_AA)
                     cv2.putText(self.img_show, str(round(distance2, 2)), pos2, \
@@ -1846,29 +2021,17 @@ class MainWindow(QMainWindow):
                 x_temp, y_temp = Pos_of_Circle(*list(shape.pos[0]), shape.radius)
                 self.canvas_blank = record_draw_shape(self.canvas_blank, \
                                                       x_temp, y_temp, shape.num)
-                cv2.circle(self.img_show, *shape.pos, shape.radius, shape.color,shape.width)
+                cv2.circle(self.img_show, *shape.pos, shape.radius_show, shape.color, shape.width)
                 if shape.show_radius:
                     radius = self.calculate_distance(shape.center_x, shape.center_y,\
                                                      shape.x2, shape.y2)
-                    pos = (round((shape.center_x + shape.x2)/2), round((shape.center_y + shape.y2)/2))
-                    cv2.line(self.img_show, (shape.center_x, shape.center_y), (shape.x2, shape.y2),\
+                    pos = (int((shape.center_x_show + shape.x2_show)/2), int((shape.center_y_show + shape.y2_show)/2))
+                    cv2.line(self.img_show, (shape.center_x_show, shape.center_y_show), (shape.x2_show, shape.y2_show),\
                              (255,0,0),1)
                     cv2.putText(self.img_show, str(round(radius, 2)), pos, \
                                 self.font, 0.7, (255,0,0), 1, cv2.LINE_AA)
         
         #self.add_canvas_to_show()
-
-    
-        
-        
-    def add_canvas_to_show(self):
-        canvas_gray = cv2.cvtColor(self.canvas, cv2.COLOR_BGR2GRAY)
-        ret, mask = cv2.threshold(canvas_gray, 10, 255, cv2.THRESH_BINARY_INV)
-        
-        img1_bg = cv2.bitwise_and(self.img_show,self.img_show,mask = mask)
-       #img2_fg = cv2.bitwise_and(self.canvas,self.canvas,mask = mask)
-
-        self.img_show = cv2.add(img1_bg,self.canvas)
 
 
     def mouse_pos_ratio_change_rec(self):
@@ -1899,12 +2062,36 @@ class MainWindow(QMainWindow):
 #                                   self.resize_show_height)
 #            self.img_bfDT_height = self.resize_show_height
     
-    def mouse_pos_ratio_change_line(self, x, y):
-        if self.img_bfDT_width != self.resize_show_width:
-            x = int(round(x/self.img_bfDT_width*self.resize_show_width))       
-        if self.img_bfDT_height != self.resize_show_height:
-            y = int(round(y/self.img_bfDT_height*self.resize_show_height))
-        return x, y
+    def mouse_pos_ratio_change_line(self, Shape = None):
+#        if self.CP:
+#            self.zoom_x2 = self.img_raw.shape[1] * self.crop_right_rate
+#            self.zoom_x1 = self.img_raw.shape[1] * self.
+        
+        scaled_width = 1 / (self.zoom_x2 - self.zoom_x1) * self.img_raw.shape[1] * self.img_show.shape[1]
+        
+        x_start = self.zoom_x1 / self.img_raw.shape[1] * scaled_width
+        y_start = self.zoom_y1 / self.img_raw.shape[1] * scaled_width
+        
+        x_crop = 0
+        if self.CP:
+            x_crop = self.img_raw.shape[1] * self.crop_left_rate / (self.crop_right_rate-self.crop_left_rate)
+        
+        
+        if Shape:
+            x1 = int(round((Shape.x1 - x_crop) / self.img_raw.shape[1] * scaled_width - x_start))
+            y1 = int(round(Shape.y1 / self.img_raw.shape[1] * scaled_width - y_start))
+            
+            
+            if Shape.prop == 'eraser' or Shape.prop == 'point':
+                return x1, y1
+            
+            x2 = int(round((Shape.x2 - x_crop) / self.img_raw.shape[1] * scaled_width - x_start))
+            y2 = int(round(Shape.y2 / self.img_raw.shape[1] * scaled_width - y_start))
+#            if self.CP:
+#                x2 -= int(self.img_show.shape[1] * self.crop_left_rate / (self.crop_right_rate-self.crop_left_rate))
+            
+            return x1, y1, x2, y2
+                    
             
     def mouse_pos_ratio_change_done(self):
         self.img_bfDT_width = self.resize_show_width
@@ -1942,7 +2129,69 @@ class MainWindow(QMainWindow):
             self.img_show = self.img_raw
             self.draw_graduated_scale()
             self.img_raw = cv2.cvtColor(self.img_show, cv2.COLOR_RGB2BGR)
+        if len(self.draw_shape_action_list) > 0:
+            self.generate_draw_shape_list()
+            self.img_raw = cv2.cvtColor(self.img_raw, cv2.COLOR_BGR2RGB)
+            self.draw_shape_canvas_for_raw()
+            self.img_raw = cv2.cvtColor(self.img_raw, cv2.COLOR_RGB2BGR)
             
+    def draw_shape_canvas_for_raw(self):
+        if len(self.draw_shape_list) == 0:
+            return
+        if self.openfile:
+            temp = self.img_raw_not_cropped
+        else:
+            temp = self.camera.last_frame
+        self.canvas_raw = np.zeros(temp.shape, dtype = np.uint8)
+        scale = max(1, self.canvas_raw.shape[0] / 1000)
+        for shape in self.draw_shape_list:
+            if shape.prop == 'line' or shape.prop == 'base line':
+                cv2.line(self.canvas_raw, (int(shape.x1), int(shape.y1)), (int(shape.x2), int(shape.y2)), shape.color, int(shape.width*scale))
+                if shape.show_distance:
+                    distance = self.calculate_distance(shape.x1, shape.y1, \
+                                                       shape.x2, shape.y2)
+                    pos = (int((shape.x1 + shape.x2)/2), \
+                           int((shape.y1 + shape.y2)/2))
+                    cv2.putText(self.canvas_raw, str(round(distance, 2)), pos, \
+                                self.font, 0.7*scale, (255,0,0), int(1*scale), cv2.LINE_AA)
+                
+            elif shape.prop == 'rec':
+                cv2.rectangle(self.canvas_raw, (int(shape.x1), int(shape.y1)), (int(shape.x2), int(shape.y2)), shape.color, int(shape.width*scale))
+                if shape.show_side_length:
+                    distance1 = self.calculate_distance(shape.x1, shape.y1,\
+                                                        shape.x2, shape.y1)
+                    distance2 = self.calculate_distance(shape.x1, shape.y1,\
+                                                        shape.x1, shape.y2)
+                    pos1 = (int((shape.x1 + shape.x2)/2), int(shape.y1))
+                    pos2 = (int(shape.x1), int((shape.y1 + shape.y2)/2))
+                    cv2.putText(self.canvas_raw, str(round(distance1, 2)), pos1, \
+                                self.font, 0.7*scale, (255,0,0), int(1*scale), cv2.LINE_AA)
+                    cv2.putText(self.canvas_raw, str(round(distance2, 2)), pos2, \
+                                self.font, 0.7*scale, (255,0,0), int(1*scale), cv2.LINE_AA)
+                    
+            elif shape.prop == 'circle':
+                cv2.circle(self.canvas_raw, (shape.center_x, shape.center_y), shape.radius, shape.color, int(shape.width*scale))
+                if shape.show_radius:
+                    radius = self.calculate_distance(shape.center_x, shape.center_y,\
+                                                     shape.x2, shape.y2)
+                    pos = (int((shape.center_x + shape.x2)/2), int((shape.center_y + shape.y2)/2))
+                    cv2.line(self.canvas_raw, (int(shape.center_x), int(shape.center_y)), (int(shape.x2), int(shape.y2)),\
+                             (255,0,0), int(1*scale))
+                    cv2.putText(self.canvas_raw, str(round(radius, 2)), pos, \
+                                self.font, 0.7*scale, (255,0,0), int(1*scale), cv2.LINE_AA)
+        self.add_canvas_to_raw()
+    
+
+    def add_canvas_to_raw(self):
+        if self.CP:
+            self.canvas_raw = self.canvas_raw[:, self.left_crop_raw: self.right_crop_raw]
+        canvas_gray = cv2.cvtColor(self.canvas_raw, cv2.COLOR_BGR2GRAY)
+        ret, mask = cv2.threshold(canvas_gray, 10, 255, cv2.THRESH_BINARY_INV)
+        
+        img1_bg = cv2.bitwise_and(self.img_raw, self.img_raw, mask = mask)
+       #img2_fg = cv2.bitwise_and(self.canvas,self.canvas,mask = mask)
+
+        self.img_raw = cv2.add(img1_bg, self.canvas_raw)
         
    
     def draw_hist(self):
@@ -2003,8 +2252,8 @@ class MainWindow(QMainWindow):
         self.img_show_height = max(1, self.img_show.shape[0])       
         self.scale_rate = min((self.window_width-300)/self.img_show_width, \
                               (self.window_height-125)/self.img_show_height)        
-        self.resize_show_width = int(self.img_show_width*self.scale_rate)
-        self.resize_show_height = int(self.img_show_height*self.scale_rate)
+        self.resize_show_width = round(self.img_show_width*self.scale_rate)
+        self.resize_show_height = round(self.img_show_height*self.scale_rate)
         #print(self.resize_width,self.resize_height)
         #self.lbl_main.resize(self.resize_width, self.resize_height)
         

@@ -7,9 +7,36 @@ Created on Mon Feb 17 20:52:59 2020
 import numpy as np
 from PyQt5.QtWidgets import QWidget, QSlider, QVBoxLayout, QHBoxLayout, \
     QLabel, QGridLayout, QProgressBar, QDesktopWidget, QLineEdit, QShortcut,\
-    QPushButton, QComboBox, QMessageBox
-    
+    QPushButton, QComboBox, QMessageBox, QCheckBox, QListWidget, QListWidgetItem
+import cv2
 from PyQt5.QtCore import Qt, QBasicTimer, pyqtSignal
+
+
+class DropLabel(QLabel):
+    new_img = pyqtSignal(str)
+    def __init__(self, title, parent):
+        super().__init__(title, parent)
+        self.setAcceptDrops(True)
+        self.support_format = ['jpg', 'png', 'bmp']
+        
+    def dragEnterEvent(self, e):
+        m = e.mimeData()
+        if m.hasUrls():
+            if m.urls()[0].toLocalFile()[-3:] in self.support_format:
+                e.accept()
+            else:
+                e.ignore()
+        else:
+            e.ignore()
+    
+    def dropEvent(self, e):
+        m = e.mimeData()
+        if m.hasUrls():
+            self.img_path = m.urls()[0].toLocalFile()
+            self.img = cv2.imread(m.urls()[0].toLocalFile())
+            self.new_img.emit('new') 
+#            print(m.urls()[0].toLocalFile())
+            
 
 class RGB_Slider(QWidget):
     
@@ -174,6 +201,8 @@ class CameraNumEdit(QWidget):
 
 
 
+
+
 class CalibrationEdit(QWidget):
     def __init__(self, current_calibration):
         super().__init__()
@@ -245,6 +274,122 @@ class CalibrationEdit(QWidget):
         
         
         
+        
+        
+class CustomContrast(QWidget):
+    confirmed = pyqtSignal(str)
+    def __init__(self, default_name):
+        super().__init__()
+        self.default_name = default_name
+        print(default_name)
+        self.init_ui()
+        
+    def init_ui(self):
+        label_name = QLabel(self)
+        label_name.setText('Name: ')
+        
+        self.name_edit = QLineEdit(self)
+        self.name_edit.setText(self.default_name)
+        
+        self.con_but_click_num = 0
+        
+        confirm_button = QPushButton('Confirm', self)
+        confirm_button.clicked.connect(self.confirm)
+        for sequence in ("Enter", "Return",):
+            shorcut = QShortcut(sequence, confirm_button)
+            shorcut.activated.connect(confirm_button.animateClick)
+        
+        cancel_button = QPushButton('Cancel', self)
+        cancel_button.clicked.connect(self.cancel)
+        
+         
+        hbox1 = QHBoxLayout()
+        hbox1.addWidget(label_name)
+        hbox1.addWidget(self.name_edit)
+        
+        hbox2 = QHBoxLayout()
+        hbox2.addWidget(cancel_button)
+        hbox2.addWidget(confirm_button)
+        
+        vbox = QVBoxLayout()
+        vbox.addLayout(hbox1)
+        vbox.addLayout(hbox2)
+
+        self.setLayout(vbox)
+        self.setWindowTitle('Custom Contrast')
+        
+    def confirm(self):
+        if self.con_but_click_num == 0:
+            self.con_but_click_num += 1
+            
+            self.name = self.name_edit.text()
+            print(self.name)
+            self.confirmed.emit('confirmed')    
+   
+    def cancel(self):
+        self.close()     
+
+
+
+
+class DeleteCustomContrast(QWidget):
+    confirmed = pyqtSignal(str)
+    def __init__(self, custom_contrast_list):
+        super().__init__()
+        self.custom_contrast_list = custom_contrast_list
+        self.init_ui()
+        
+    def init_ui(self):
+        self.qListWidget = QListWidget()
+        
+        
+        self.check_box_list = []
+        vbox = QVBoxLayout()
+        for item in self.custom_contrast_list:
+           self.check_box_list.append(QCheckBox(item, self))
+           self.check_box_list[-1].setChecked(True)
+           self.check_box_list[-1].toggle()
+           
+           qItem = QListWidgetItem(self.qListWidget)
+           self.qListWidget.setItemWidget(qItem, self.check_box_list[-1])
+#           vbox.addWidget(self.check_box_list[-1])
+        
+        vbox.addWidget(self.qListWidget)
+        self.con_but_click_num = 0
+        
+        confirm_button = QPushButton('Confirm', self)
+        confirm_button.clicked.connect(self.confirm)
+        for sequence in ("Enter", "Return",):
+            shorcut = QShortcut(sequence, confirm_button)
+            shorcut.activated.connect(confirm_button.animateClick)
+        
+        cancel_button = QPushButton('Cancel', self)
+        cancel_button.clicked.connect(self.cancel)
+        
+        hbox = QHBoxLayout()
+        hbox.addWidget(cancel_button)
+        hbox.addWidget(confirm_button)
+        
+        vbox.addLayout(hbox)
+        
+        self.setLayout(vbox)
+        self.setWindowTitle('Delete Contrast')
+        
+    def confirm(self):
+        if self.con_but_click_num == 0:
+            self.con_but_click_num += 1
+            self.delte_list = []
+            
+            for i in range(len(self.custom_contrast_list)):
+                if self.check_box_list[i].isChecked():
+                    self.delte_list.append(self.custom_contrast_list[i])
+            
+            self.confirmed.emit('confirmed')
+   
+    def cancel(self):
+        self.close()
+           
+
         
 class ThicknessChoose(QWidget):
     confirmed = pyqtSignal(str)

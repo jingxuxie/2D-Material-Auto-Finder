@@ -122,7 +122,7 @@ def calculate_contrast(matrix, x1_1, y1_1, x1_2, y1_2, x2_1, y2_1, x2_2, y2_2):
 def record_draw_shape(blank, x_pos, y_pos, num):
     if len(x_pos) > 0:
         for i in range(len(x_pos)):
-            if x_pos[i] < blank.shape[1] and y_pos[i] < blank.shape[0]:
+            if 0 <= x_pos[i] < blank.shape[1] and 0 <= y_pos[i] < blank.shape[0]:
                 
                 blank[y_pos[i], x_pos[i]] = num
             
@@ -148,7 +148,7 @@ def calculate_angle(pos11,pos12,pos21,pos22):
         if abs(theta) > 1:
             return 0
         theta = np.arccos(theta)
-        theta = theta/np.pi*180
+        theta = theta/np.pi * 180
     return theta
 
 

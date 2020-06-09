@@ -20,14 +20,20 @@ class Shape:
         return self.color
 
 
-class Line(Shape):
-    def __init__(self, x1 = 0, y1 = 0, x2 = 0, y2 = 0, color = (255, 0, 0), \
-                 width = 1, num = 0, show_distance = False):
+class Line():
+    def __init__(self, x1 = 0, y1 = 0, x2 = 0, y2 = 0, canvas_width = 1, canvas_height = 1,\
+                 color = (255, 0, 0), width = 1, num = 0, show_distance = False):
         self.x1 = x1
         self.y1 = y1
         
         self.x2 = x2
         self.y2 = y2
+        
+        self.x1_show, self.y1_show = self.x1, self.y1
+        self.x2_show, self.y2_show = self.x2, self.y2
+        
+        self.canvas_width = canvas_width
+        self.canvas_height = canvas_height
         
         self.pos_refresh()
         
@@ -41,19 +47,25 @@ class Line(Shape):
         
         
     def pos_refresh(self):
-        self.pos1 = (self.x1, self.y1)
-        self.pos2 = (self.x2, self.y2)
+        self.pos1 = (self.x1_show, self.y1_show)
+        self.pos2 = (self.x2_show, self.y2_show)
         self.pos = [self.pos1, self.pos2]
         
         
-class Rectangle(Shape):
-    def __init__(self, x1 = 0, y1 = 0, x2 = 0, y2 = 0, color = (255, 0, 0), \
-                 width = 1, num = 0, show_side_length = False):
+class Rectangle():
+    def __init__(self, x1 = 0, y1 = 0, x2 = 0, y2 = 0 , canvas_width = 1, canvas_height = 1, \
+                 color = (255, 0, 0), width = 1, num = 0, show_side_length = False):
         self.x1 = min(x1, x2)
         self.x2 = max(x1, x2)
         
         self.y1 = min(y1, y2)
         self.y2 = max(y1, y2)
+        
+        self.x1_show, self.y1_show = self.x1, self.y1
+        self.x2_show, self.y2_show = self.x2, self.y2
+        
+        self.canvas_width = canvas_width
+        self.canvas_height = canvas_height
 
         self.pos_refresh()
         
@@ -65,20 +77,26 @@ class Rectangle(Shape):
         self.prop = 'rec'
         
     def pos_refresh(self):
-        self.pos1 = (self.x1, self.y1)
-        self.pos2 = (self.x2, self.y2)
+        self.pos1 = (self.x1_show, self.y1_show)
+        self.pos2 = (self.x2_show, self.y2_show)
         self.pos = [self.pos1, self.pos2]
         
         
         
-class Circle(Shape):
-    def __init__(self, x1 = 0, y1 = 0, x2 = 0, y2 = 0, color = (255, 0, 0), \
-                 width = 1, num = 0, show_radius = False):
+class Circle():
+    def __init__(self, x1 = 0, y1 = 0, x2 = 0, y2 = 0, canvas_width = 1, canvas_height = 1, \
+                 color = (255, 0, 0), width = 1, num = 0, show_radius = False):
         self.x1 = x1
         self.y1 = y1
         
         self.x2 = x2
         self.y2 = y2
+        
+        self.x1_show, self.y1_show = self.x1, self.y1
+        self.x2_show, self.y2_show = self.x2, self.y2
+        
+        self.canvas_width = canvas_width
+        self.canvas_height = canvas_height
         
         self.pos_refresh()
 
@@ -90,18 +108,27 @@ class Circle(Shape):
         self.prop = 'circle'
     
     def pos_refresh(self):
-        self.center_x = round((self.x1 + self.x2)/2)
-        self.center_y = round((self.y1 + self.y2)/2)
-        self.pos = [(self.center_x, self.center_y)]
+        self.center_x = int(round((self.x1 + self.x2)/2))
+        self.center_y = int(round((self.y1 + self.y2)/2))
         
         radius = np.sqrt((self.x2 - self.x1)**2 + (self.y2 - self.y1)**2)
-        self.radius = round(radius/2).astype(int)
+        self.radius = int(round(radius/2))
+        
+        self.center_x_show = round((self.x1_show + self.x2_show)/2)
+        self.center_y_show = round((self.y1_show + self.y2_show)/2)
+        self.pos = [(self.center_x_show, self.center_y_show)]
+        
+        radius_show = np.sqrt((self.x2_show - self.x1_show)**2 + (self.y2_show - self.y1_show)**2)
+        self.radius_show = int(round(radius_show/2))
 
 
-class Eraser(Shape):
-    def __init__(self, x1 = 0, y1 = 0, size = 10, color = (220,220,220), width = -1, num = [0]):
+class Eraser():
+    def __init__(self, x1 = 0, y1 = 0, size = 13, color = (220,220,220,200), width = -1, num = [0]):
         self.x1 = x1
         self.y1 = y1
+        
+        self.x1_show = x1
+        self.y1_show = y1
         
         self.pos_refresh()
         
@@ -113,8 +140,25 @@ class Eraser(Shape):
         self.prop = 'eraser'
         
     def pos_refresh(self):
-        self.pos = [(self.x1, self.y1)]
+        self.pos = [(self.x1_show, self.y1_show)]
         
+        
+class Point():
+    def __init__(self, x1 = 0, y1 = 0):
+        self.x1 = x1
+        self.y1 = y1
+        
+        self.x1_show = x1
+        self.y1_show = y1
+        
+        self.pos_refresh()
+        
+        self.prop = 'point'
+        
+    def pos_refresh(self):
+        self.pos = [(self.x1_show, self.y1_show)]
+
+
         
 class Clear_All():
     def __init__(self):
@@ -132,8 +176,8 @@ if __name__ == '__main__':
     shape.append(Eraser(200,200, size = 10))
     shape.append(Clear_All())
     
-    print(shape[0].get_pos())
-    print(shape[1].get_pos())       
+#    print(shape[0].get_pos())
+#    print(shape[1].get_pos())       
     print(shape[2].pos1) 
     #print(shape[3].center)
     cv2.circle(img,*shape[4].pos, shape[4].size,shape[4].color, shape[4].width)

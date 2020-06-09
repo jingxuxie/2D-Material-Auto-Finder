@@ -4,6 +4,7 @@ Created on Sun Jan 19 17:24:35 2020
 
 @author: HP
 """
+
 import PyQt5
 import sys
 #from PyQt5.QtWidgets import 
@@ -23,6 +24,9 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton,
 import sys
 import pyautogui
 import win32gui
+import json
+from numba import jit
+import pyqtgraph as pg
 
 class Example(QWidget):
     
@@ -63,8 +67,45 @@ class Example(QWidget):
         if ok:
             self.lbl.setFont(font)
         
-        
+
+def abc():
+    return
+    print('123')
+       
+
 if __name__ == '__main__':
+    print('hello world')    
+
+    
+    '''
+    from distutils.core import setup
+    import py2exe
+    
+    setup(console=['Sony_view2.0.py'])
+    '''
+
+
+    '''
+    dic = {'123': [1,2,3], '456': [4,5,6]}
+    dic['789'] = [7,8,9]
+            
+    js = json.dumps(dic)
+    file = open('test.txt', 'w')
+    file.write(js)
+    file.close()
+    
+    file = open('test.txt', 'r')
+    js = file.read()
+    test_dic = json.loads(js)
+    print(test_dic)
+    file.close()
+    
+    for key in test_dic:
+        print(key)
+
+    b = abc()
+    '''
+    '''
     cap = cv2.VideoCapture(0)
     ret, img_1 = cap.read()
     time_start = time.time()
@@ -79,6 +120,13 @@ if __name__ == '__main__':
     cv2.imshow('diff',d_frame)
     print(time_end - time_start)
     print(np.sum(d_frame[d_frame>50]))
+    '''
+    
+    
+#    a = [1,2,3]
+#    for i in range(1,4):
+#        print(a[-i])
+        #print(i)
 #    window_name = 'PriorTerminal'
 #    bx2_hwnd = win32gui.FindWindow(None, window_name)
 #    left, top, right, bottom = win32gui.GetWindowRect(bx2_hwnd)
