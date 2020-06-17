@@ -21,6 +21,8 @@ This program is made during my visit at UC Berkeley in Prof. Feng Wang's group.
 - Zoom out (press the right button)
 ![image](https://github.com/jingxuxie/2D-Material-Auto-Finder/blob/master/readme/start.gif)
 
+- Gray mode
+- Crop black frames
 - Change contrast
 - Custom contrast
 ![image](https://github.com/jingxuxie/2D-Material-Auto-Finder/blob/master/readme/contrast.gif)
@@ -29,3 +31,11 @@ This program is made during my visit at UC Berkeley in Prof. Feng Wang's group.
 - Choose base line
 - Measure angle
 ![image](https://github.com/jingxuxie/2D-Material-Auto-Finder/blob/master/readme/angle.gif)
+
+- Edit images under 4k real time Live View
+- Divide background and erase background inhomogenous
+- Scale bar
+- Setting calibrition
+- Setting software background color
+
+## 2D Layer Auto Finder
