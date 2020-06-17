@@ -17,7 +17,7 @@ class DropLabel(QLabel):
     def __init__(self, title, parent):
         super().__init__(title, parent)
         self.setAcceptDrops(True)
-        self.support_format = ['jpg', 'png', 'bmp']
+        self.support_format = ['jpg', 'JPG', 'png', 'PNG', 'bmp', 'BMP']
         
     def dragEnterEvent(self, e):
         m = e.mimeData()

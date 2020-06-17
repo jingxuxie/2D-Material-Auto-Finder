@@ -476,12 +476,17 @@ class MainWindow(QMainWindow):
         self.contrast = 0.
         self.contrast_lbl.setText(str(round(self.contrast,2)))
 
-        self.pixmap = QPixmap()
+#        self.pixmap = QPixmap()
+        home_page = cv2.imread(self.current_dir + 'home_page.png')
+        home_page_qi = self.np2qimage(home_page)
+        self.pixmap = QPixmap(home_page_qi)
         
         self.lbl_main = DropLabel('',self)
         self.lbl_main.new_img.connect(self.accept_new_img)
         self.lbl_main.setAlignment(Qt.AlignCenter)
         self.lbl_main.setPixmap(self.pixmap)
+        
+        
         
         
         self.pw_hist = pg.PlotWidget()
