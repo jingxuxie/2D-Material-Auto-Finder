@@ -46,7 +46,7 @@ The program will first do auto focus for three points on the chip to determine t
 
 Before using this function, you need to capture background pictures to eliminate background inhomogenous. This is highly important and background inhomogenous will leads to decreasing accuracy dramatically. Also, you need to fix the settings of your camera and the light source. To yield good results, make sure that in gray mode, the histogram peaks around 130, which indicates a proper environment brightness.
 
-Here are some examples of finding results. The green frames locate the layers and the red dot at the top right coner indicate the relative position of the chip.
+The results will be stored in 'C:/layer_search/...dates.../results'. Here are some examples of finding results. The green frames locate the layers and the red dot at the top right coner indicate the relative position of the chip.
 
 - Graphene
 ![image](https://github.com/jingxuxie/2D-Material-Auto-Finder/blob/master/readme/gr.bmp)
