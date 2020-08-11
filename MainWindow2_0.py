@@ -42,7 +42,7 @@ from auxiliary_func import go_fast, background_divide, get_folder_from_file,\
     calculate_angle
 from auxiliary_class import RGB_Slider, ProgressBar, CameraNumEdit, \
     CalibrationEdit, ThicknessChoose, SearchingProperty, DropLabel, \
-    CustomContrast, DeleteCustomContrast
+    CustomContrast, DeleteCustomContrast, CalibrateCoordinate
 
           
 class QComboBox(QComboBox):
@@ -168,8 +168,11 @@ class MainWindow(QMainWindow):
         restart = QAction('Restart', self)
         restart.triggered.connect(self.restart_program)
         
-        set_calibration = QAction('Calibration', self)
-        set_calibration.triggered.connect(self.set_calibration)
+        calibrate_scale = QAction('Calibrate scale', self)
+        calibrate_scale.triggered.connect(self.set_calibration)
+        
+        calibrate_coordinate = QAction('Calibrate coordinates', self)
+        calibrate_coordinate.triggered.connect(self.calibrate_coordinates)
         
         set_cam_num = QAction('Camera number', self)
         set_cam_num.triggered.connect(self.set_camera_number)
@@ -196,7 +199,8 @@ class MainWindow(QMainWindow):
         toolMenu.addAction(restart)
         
         settingMenu = self.menubar.addMenu('&Setting')
-        settingMenu.addAction(set_calibration)
+        settingMenu.addAction(calibrate_scale)
+        settingMenu.addAction(calibrate_coordinate)
         settingMenu.addAction(set_cam_num)
         settingMenu.addAction(theme)
         
@@ -652,6 +656,10 @@ class MainWindow(QMainWindow):
             self.stage_thread.terminate()
     
     
+    def calibrate_coordinates(self):
+        self.calibrate_coordinates_widget = CalibrateCoordinate()
+        self.calibrate_coordinates_widget.show()
+    
     def show_developer_options(self):
         if self.developer_options.isChecked():
             reply = QMessageBox.information(self, "Developer options", 'Do you want to '
@@ -1063,8 +1071,8 @@ class MainWindow(QMainWindow):
                                 'Proudly designed and created by Jingxu Xie(谢京旭).\n \n'
                                 'Copyright © 2019-2020 Jingxu Xie. All Rights Reserved.')
         
-    def acknowledgement(self):
-        QMessageBox.information(self, 'acknowledgement', 'I thank a lot for Sasha\'s help.')
+    def acknowledgment(self):
+        QMessageBox.information(self, 'acknowledgment', 'I thank a lot for Hongyuan, Sasha and Feng\'s help.')
         
     def auto_restart(self):
         if self.camera.camera_error:

@@ -446,7 +446,7 @@ def layer_search_TMD(filename, thickness = '285nm'):
             x,y,w,h = cv2.boundingRect(cnt_large)
             if w*h > 50000:
                 continue
-            enlarge_rate = 0.2
+            enlarge_rate = 0.4
             start_1 = max(0, y-int(h*enlarge_rate))
             end_1 = min(img_raw.shape[0]-1, y+int(h*(1+enlarge_rate*2)))
             start_2 = max(0, x-int(w*enlarge_rate))
@@ -463,7 +463,7 @@ def layer_search_TMD(filename, thickness = '285nm'):
 #    cv2.imshow('2-1', img_open)
 #    cv2.imshow('2-2', img_close)
 #    cv2.namedWindow('4', cv2.WINDOW_NORMAL)
-#    cv2.imshow('4', img_raw_for_draw)
+    cv2.imshow('4', img_raw_for_draw)
 #    cv2.imwrite('F:/2020/test.jpg', img_raw)
     return isLayer, img_raw_for_draw
     
@@ -476,9 +476,9 @@ if __name__ == '__main__':
 #    img0 = cv2.imread('F:/2020/1/25/01-28-2020-36.jpg')
 #    layer_search_TMD('H:/Jingxu/2-28/jingxu/02-28-2020-10-20_20-01_20.jpg', thickness='90nm')
 #    os.system('pause')
-#    layer_search_TMD('F:/2020/2/24/02-26-2020-1.jpg', thickness='90nm')
+    layer_search_TMD('F:/2020/2/24/02-26-2020-1.jpg', thickness='90nm')
 #    layer_search_TMD('H:/02-26-2020-7-20_20-06_08.jpg', thickness='90nm')
-    test_run('90nm')
+#    test_run('90nm')
     
     def test_run(thickness = '285nm'):
         print(thickness)

@@ -58,6 +58,8 @@ class StageThread(QThread):
             self.prior_list_box = ListBoxWrapper(self.prior_list_box_hwnd)
 
             self.manubar_hwnd = hwndChildList[2]
+            
+            self.get_absolute_postion()
         
     def prior_pause(self):
         for i in range(200):
@@ -94,7 +96,32 @@ class StageThread(QThread):
             self.stop()
         
     def get_absolute_postion(self):
-        pass
+        self.prior_edit_text.set_text('P')
+        win32api.SendMessage(self.prior_edit_text_hwnd, win32con.WM_CHAR, 13, 0)
+        time.sleep(0.1)
+        for i in range(200):
+            list_box_text = self.prior_list_box.item_texts()
+            if len(list_box_text[-1]) > 3:
+                break
+            else:
+                time.sleep(0.02)
+        if i == 199:
+            print('prior wait time out!')
+            return [0, 0]
+        else:
+            self.get_abs_pos_from_text(list_box_text[-1])
+            return self.absolute_position
+            
+    def get_abs_pos_from_text(self, text):
+        count = 0
+        comma = [0, 0]
+        for i in range(len(text)):
+            if text[i] == ',':
+                comma[count] = i
+                count += 1
+        pos_x = int(text[:comma[0]])
+        pos_y = int(text[comma[0]+1: comma[1]])
+        self.absolute_position = [pos_x, pos_y]
     
     def stop(self):
         print('stage stop')
@@ -114,7 +141,7 @@ class AutoFocusThread(QThread):
         self.initUI()
         
     def initUI(self):
-        self.radiant_mean = []
+        self.gradient_mean = []
         self.bx2_position = 0
         self.focus = 0
         self.error = False
@@ -212,37 +239,37 @@ class AutoFocusThread(QThread):
         if self.error:
             self.stop()
             time.sleep(1)
-        self.gradiant_mean = []
+        self.gradient_mean = []
         if self.click_go_height_wait(100):
             self.cal_clearness()
             for i in range(10):
                 self.down_coarse()
                 self.cal_clearness()
-            z = 10 - np.argmax(self.gradiant_mean)
+            z = 10 - np.argmax(self.gradient_mean)
             self.click_go_height_wait(z*20)
         
 #        with open('focus.txt','a') as file:
-#            file.write(str(self.gradiant_mean)+'\n')
+#            file.write(str(self.gradient_mean)+'\n')
 #            print('file write finished')
 #        file.close()
             
-        self.gradiant_mean = []
+        self.gradient_mean = []
         if self.click_go_height_wait(20):
             self.cal_clearness()
             for i in range(4):
                 self.down_fine()
                 self.cal_clearness()
-            z = 4 - np.argmax(self.gradiant_mean)
+            z = 4 - np.argmax(self.gradient_mean)
             self.click_go_height_wait(z*10)
 
         if self.Fine:
-            self.gradiant_mean = []
+            self.gradient_mean = []
             self.click_go_height_wait(5)
             self.cal_clearness()
             for i in range(5):
                 self.down_super_fine()
                 self.cal_clearness()
-            z = 5 - np.argmax(self.gradiant_mean)
+            z = 5 - np.argmax(self.gradient_mean)
             self.click_go_height_wait(z*2)
         
         try:
@@ -255,7 +282,7 @@ class AutoFocusThread(QThread):
         img = self.camera.last_frame
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         laplacian = cv2.Laplacian(img,cv2.CV_64F)
-        self.gradiant_mean.append(np.var(abs(laplacian)))
+        self.gradient_mean.append(np.var(abs(laplacian)))
         
     def up_coarse(self):
         self.soft_key_1_button.click()
@@ -371,7 +398,7 @@ class Set_Stage_Focus(QThread):
                 break
             else:
                 time.sleep(0.1)
-        if i == 99:
+        if i == 299:
             self.autofocus.terminate()
             self.autofocus_running = False
             print('focus time out!!!')
@@ -507,11 +534,11 @@ class Scan(Set_Stage_Focus):
         height.append(Get_Z_Position(0, 0, self.plane_para))
         delta_height = 0
         
-        while os.path.isfile(self.save_folder+'/'+self.date+'-'+str(self.save_count)+\
+        while os.path.isfile(self.save_folder+'/'+str(self.save_count)+'-'+self.date+\
                              '-'+'00_00-00_00'+'.jpg'):
             self.save_count += 1
         img_temp = np.zeros((512,512,3), dtype = np.uint8)
-        cv2.imwrite(self.save_folder+'/'+self.date+'-'+str(self.save_count)+\
+        cv2.imwrite(self.save_folder+'/'+str(self.save_count)+'-'+self.date+\
                              '-'+'00_00-00_00'+'.jpg', img_temp)
         
         self.get_index(x_sample, y_sample, 0, 0)
@@ -603,7 +630,7 @@ class Scan(Set_Stage_Focus):
         right_crop = int(self.img.shape[1]*0.83)
         self.img = self.img[:, left_crop:right_crop]
         self.img = background_divide(self.img, self.background, self.background_norm)
-        cv2.imwrite(self.save_folder+'/'+self.date+'-'+str(self.save_count)+\
+        cv2.imwrite(self.save_folder+'/'+str(self.save_count)+'-'+self.date+\
                     '-'+self.index+'.jpg', self.img)
         '''
         if not self.capture_still_running or not self.capture_still.running:
@@ -826,6 +853,11 @@ class LargeScanThread(QThread):
         self.scan = Scan(self.camera)
         self.scan.scan_stop.connect(self.stop_scan)
         self.layer_search = LayerSearchThread()
+        self.current_dir = os.path.abspath(__file__).replace('\\','/')
+        self.current_dir = get_folder_from_file(self.current_dir)
+        self.xy_step_file = self.current_dir + 'support_file/coordinate_calibration.txt'
+        self.x_step = int(np.loadtxt(self.xy_step_file)[0])
+        self.y_step = int(np.loadtxt(self.xy_step_file)[1])
         
         
     def run(self):
@@ -847,10 +879,14 @@ class LargeScanThread(QThread):
                 self.para = self.find_focus_plane.para
                 self.scan.plane_para = self.para
                 self.scan_running = True
+                start_pos = self.scan.stage.get_absolute_postion()
                 self.scan.start()
                 self.wait_for_scan()
                 
-                self.stage_focus.stage.pos = [3800,-11200]
+                self.scan.stage.get_absolute_postion()
+                x_temp = self.x_step - (self.scan.stage.absolute_position[0] - start_pos[0])
+                y_temp = start_pos[1] - self.scan.stage.absolute_position[1]
+                self.stage_focus.stage.pos = [x_temp, y_temp]
                 self.stage_focus.stage_running = True
                 self.stage_focus.stage.start()
                 self.stage_focus.wait_stage()
@@ -862,13 +898,17 @@ class LargeScanThread(QThread):
             self.para = self.find_focus_plane.para
             self.scan.plane_para = self.para
             self.scan_running = True
+            start_pos = self.scan.stage.get_absolute_postion()
             self.scan.start()
             self.wait_for_scan()
             if m == 2:
                 break
             else:
-                self.stage_focus.stage.pos = [-41200,3800]
-                self.stage_focus.stage_running  =True
+                self.scan.stage.get_absolute_postion()
+                x_temp = start_pos[0] - 2*self.x_step - self.scan.stage.absolute_position[0]
+                y_temp = self.y_step - (self.scan.stage.absolute_position[1] - start_pos[1])
+                self.stage_focus.stage.pos = [x_temp, y_temp]
+                self.stage_focus.stage_running = True
                 self.stage_focus.stage.start()
                 self.stage_focus.wait_stage()
 

@@ -10,6 +10,10 @@ from PyQt5.QtWidgets import QWidget, QSlider, QVBoxLayout, QHBoxLayout, \
     QPushButton, QComboBox, QMessageBox, QCheckBox, QListWidget, QListWidgetItem
 import cv2
 from PyQt5.QtCore import Qt, QBasicTimer, pyqtSignal
+from PyQt5.QtGui import QPixmap
+from Threads import StageThread
+import os
+from auxiliary_func import get_folder_from_file, np2qimage
 
 
 class DropLabel(QLabel):
@@ -273,7 +277,127 @@ class CalibrationEdit(QWidget):
         self.close()
         
         
+class CalibrateCoordinate(QWidget):
+    finished_signal = pyqtSignal(str)
+    def __init__(self):
+        super().__init__()
+        self.init_ui()
         
+    def init_ui(self):
+        self.stage = StageThread(0)
+        
+        self.current_dir = os.path.abspath(__file__).replace('\\','/')
+        self.current_dir = get_folder_from_file(self.current_dir)
+        self.xy_step_file = self.current_dir + 'support_file/coordinate_calibration.txt'
+        self.xy_step = np.loadtxt(self.xy_step_file)
+        
+        self.label = QLabel(self)
+        self.label.setText('This tool is for coordinate calibration. Please follow the '+\
+                           'instructions and click Next to continue.')
+        
+#        self.img_1 = cv2.imread(self.current_dir + 'support_file/coordinate_calibration_1.png')
+        self.read_img()
+        
+        self.pixmap = QPixmap(self.img_1_qi)
+        
+        self.label_image = QLabel(self)
+        self.label_image.setPixmap(self.pixmap)
+        self.label_image.hide()
+        
+        self.back_button = QPushButton('Back', self)
+        self.back_button.clicked.connect(self.back_action)
+        self.back_button.hide()
+        
+        self.next_button = QPushButton('Next', self)
+        self.next_button.clicked.connect(self.next_action)
+        self.next_count = 0
+        
+        self.pos_list = [[0, 0] for i in range(4)]
+        
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.back_button)
+        hbox.addStretch(1)
+        hbox.addWidget(self.next_button)
+        
+        vbox = QVBoxLayout()
+        vbox.addWidget(self.label)
+        vbox.addWidget(self.label_image)
+        vbox.addLayout(hbox)
+
+        self.setLayout(vbox)
+        self.setWindowTitle('Calibrate coordinates')
+        
+    def next_action(self):
+#        print(self.next_count)
+        self.next_count += 1
+        self.change_label_text()
+        if self.next_count > 4:
+            self.finished()
+        if 1 < self.next_count < 5:
+            self.get_current_pos()
+    
+    def back_action(self):
+        self.next_count -= 1
+        if self.next_count == 0:
+            self.back_button.hide()
+            self.label_image.hide()
+            self.label.setText('This tool is for coordinate calibration. Please follow the '+\
+                           'instructions and click Next to continue.')
+        else:
+            self.next_button.setText('Next')
+            self.change_label_text()
+        
+    def change_label_text(self):
+        if self.next_count == 1:
+            self.back_button.show()
+            self.label.setText('Please move to the bottom right corner, then click Next')
+            self.pixmap = QPixmap(self.img_1_qi)
+            self.label_image.setPixmap(self.pixmap)
+            self.label_image.show()
+        elif self.next_count == 2:
+            self.label.setText('Please move leftward, then click Next')
+            self.pixmap = QPixmap(self.img_2_qi)
+            self.label_image.setPixmap(self.pixmap)
+        elif self.next_count == 3:
+            self.label.setText('please move backward, then click Next')
+            self.pixmap = QPixmap(self.img_3_qi)
+            self.label_image.setPixmap(self.pixmap)
+            self.label_image.show()
+        elif self.next_count == 4:
+            self.label_image.hide()
+            self.label.setText('Done!')
+            self.next_button.setText('Finish')
+        else:
+            pass
+    
+    def read_img(self):
+        img_1 = cv2.imread(self.current_dir + 'support_file/coordinate_calibration_1.png')
+        img_1 = cv2.cvtColor(img_1, cv2.COLOR_BGR2RGB)
+        img_2 = cv2.imread(self.current_dir + 'support_file/coordinate_calibration_2.png')
+        img_2 = cv2.cvtColor(img_2, cv2.COLOR_BGR2RGB)
+        img_3 = cv2.imread(self.current_dir + 'support_file/coordinate_calibration_3.png')
+        img_3 = cv2.cvtColor(img_3, cv2.COLOR_BGR2RGB)
+        self.img_1_qi = np2qimage(img_1)
+        self.img_2_qi = np2qimage(img_2)
+        self.img_3_qi = np2qimage(img_3)
+    
+    def get_current_pos(self):
+        self.stage.get_absolute_postion()
+        self.pos_list[self.next_count-1] = self.stage.absolute_position
+        
+    def finished(self):
+        self.finished_signal.emit('finished')
+        x_step = (self.pos_list[2][0] - self.pos_list[1][0]) / 2
+        y_step = (self.pos_list[3][1] - self.pos_list[2][1]) / 2
+        self.xy_step = np.array([int(x_step), int(y_step)])
+        reply = QMessageBox.warning(self, "Warning", 'Do you want to save the new '+\
+                                    'coordinates: x spacing '+ str(x_step)+'mm and y spacing '
+                                    + str(y_step) + 'mm?', +\
+                                    QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+        if reply == QMessageBox.Yes:
+            np.savetxt(self.xy_step_file, self.xy_step)
+        print(x_step, y_step)
+        self.close()        
         
         
 class CustomContrast(QWidget):

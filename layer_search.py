@@ -360,7 +360,7 @@ def layer_search(filename, thickness = '285nm'):
             img_samll_segment = cv2.bitwise_and(img_raw, img_raw, mask = mask)
             
             x,y,w,h = cv2.boundingRect(cnt_large)
-            enlarge_rate = 0.2
+            enlarge_rate = 0.3
             start_1 = max(0, y-int(h*enlarge_rate))
             end_1 = min(img_raw.shape[0]-1, y+int(h*(1+enlarge_rate*2)))
             start_2 = max(0, x-int(w*enlarge_rate))
@@ -369,7 +369,7 @@ def layer_search(filename, thickness = '285nm'):
             cv2.rectangle(img_raw_draw,(start_2,start_1),(end_2,end_1),(0,255,0),2)
             
             font = cv2.FONT_HERSHEY_SIMPLEX
-            cv2.putText(img_raw_draw,str(round(contrast[k],3)),(int(x),int(y+h)), font, 1,(255,255,255),2,cv2.LINE_AA)
+            cv2.putText(img_raw_draw,str(round(contrast[k],3)),(int(x),int(y)), font, 1,(255,255,255),2,cv2.LINE_AA)
             isLayer = True
             k += 1
     

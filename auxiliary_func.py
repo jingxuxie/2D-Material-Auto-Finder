@@ -9,6 +9,7 @@ import numpy as np
 from numba import jit
 import os
 from BresenhamAlgorithm import Pos_of_Line
+from PyQt5.QtGui import QImage
 
 @jit(nopython = True)
 def go_fast(a,b,c):
@@ -151,7 +152,14 @@ def calculate_angle(pos11,pos12,pos21,pos22):
         theta = theta/np.pi * 180
     return theta
 
-
+def np2qimage(img):
+        if len(img.shape)==3:
+            qimage = QImage(img[:], img.shape[1], img.shape[0],\
+                          img.shape[1] * 3, QImage.Format_RGB888)
+        else:
+            qimage = QImage(img[:], img.shape[1], img.shape[0],\
+                          img.shape[1] * 1, QImage.Format_Indexed8)
+        return qimage
 
 if __name__ == '__main__':
     u = os.path.abspath(__file__).replace('\\','/')
