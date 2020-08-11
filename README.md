@@ -8,10 +8,12 @@ Si/SiO_2 chips together with an optical microscope with xyz scanning stage, also
 connect it to a camera and measure the size and contrast of the sample. 
 
 It has friendly user interface and you can use it easily by running the *.exe* file. I use PyQt5 to design the UI and use OpenCV to locate 
-and recognize 2D materials, and use @jit to accelerate， then use PyInstallter to freeze the application into executables. 
-The program now works fine on Win7 and Win10 (I didn't test it on MacOs).
+and recognize 2D materials, and use numba.jit to accelerate, then use PyInstallter to freeze the application into executables. The program
+can be run by directly running the executable in /dist directory, or run the Sony_view20.py.
+The program now works fine on Win7 and Win10 (I didn't test it on Linux or MacOs). Also, there is a code explanation manual file to 
+detailly explain the codes.
 
-This program is made during my visit at UC Berkeley in Prof. Feng Wang's group.
+This program is designed and created during my visit at UC Berkeley in Prof. Feng Wang's group.
 
 ## Basic Usage
 - Open files
